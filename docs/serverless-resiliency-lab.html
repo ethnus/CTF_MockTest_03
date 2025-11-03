@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Serverless Resiliency Lab &mdash; AWS Troubleshooting Project</title>
+    <style>
+      body {
+        margin: 0 auto;
+        padding: 2rem;
+        max-width: 960px;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        line-height: 1.6;
+        color: #1f2933;
+      }
+      h1,
+      h2,
+      h3 {
+        color: #0b7285;
+      }
+      code {
+        font-family: "Fira Mono", Menlo, monospace;
+        background: #f4f6f8;
+        padding: 0.1rem 0.25rem;
+        border-radius: 4px;
+      }
+      pre {
+        background: #f1f5f9;
+        padding: 1rem;
+        overflow-x: auto;
+        border-radius: 6px;
+      }
+      table {
+        border-collapse: collapse;
+        margin: 1rem 0;
+        width: 100%;
+      }
+      table th,
+      table td {
+        border: 1px solid #d2d6dc;
+        padding: 0.5rem 0.75rem;
+        vertical-align: top;
+      }
+      table th {
+        background: #e6f4f1;
+        text-align: left;
+      }
+      .note {
+        border-left: 4px solid #52796f;
+        padding: 0.75rem 1rem;
+        margin: 1rem 0;
+        background: #f1f5f9;
+      }
+      .milestone-list li {
+        margin-bottom: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Serverless Resiliency Lab Challenge</h1>
+      <p>
+        You are needed to restore a private, serverless telemetry ingestion
+        workload within an enterprise sandbox. The stack ships with ten
+        misconfigurations that block end-to-end success. Your mission is to
+        locate and correct each issue using only the pre-provisioned lab IAM
+        role.
+      </p>
+      <div class="note">
+        <strong>Prerequisites:</strong>
+        AWS CLI v3, Python 3, the zip utility, and permission to operate as the
+        fixed lab IAM role (default <code>LabRole</code>).
+      </div>
+    </header>
+
+    <section>
+      <h2>Scenario Overview</h2>
+      <p>
+        A field engineering team depends on a private ingestion API that accepts
+        JSON sensor payloads, stores them in DynamoDB, and keeps a durable copy
+        on Amazon S3. The platform must run entirely inside a managed VPC, use a
+        customer-managed KMS key, and expose the API privately through API
+        Gateway. Observability relies on an EventBridge heartbeat that pings the
+        Lambda writer function every 10 minutes.
+      </p>
+      <p>
+        The environment you received was generated automatically with deliberate
+        drift that mirrors common production mistakes. Your task is to audit the
+        stack, close the gaps, and prove the workload is operating securely and
+        privately.
+      </p>
+    </section>
+
+    <section>
+      <h2>Reference Architecture</h2>
+      <p>
+        The restored topology keeps the entire ingest path private, serverless,
+        and event-driven. The image below highlights the relationships between
+        components at a glance.
+      </p>
+      <figure>
+        <img
+          src="../assets/diagrams/serverless-resiliency-lab-architecture.svg"
+          alt="Serverless Resiliency Lab architecture diagram showing API Gateway, EventBridge, Lambda, VPC endpoints, DynamoDB, and S3 bound to a KMS CMK."
+          style="width:100%;max-width:840px;display:block;margin:0 auto;"
+        />
+        <figcaption>
+          Figure 1 &mdash; Expected architecture after restoring the ingest
+          pipeline.
+        </figcaption>
+      </figure>
+      <p>
+        Use the diagram as a guide, then validate that each connection aligns
+        with the policies enforced by your lab environment.
+      </p>
+    </section>
+
+    <section>
+      <h2>Investigation Themes</h2>
+      <p>
+        Expect to uncover drift across four domains. Inspect each area and bring
+        it back in line with your organization’s standards:
+      </p>
+      <ul>
+        <li>
+          <strong>Data Protection:</strong> Confirm encryption grants,
+          server-side defaults, and tagging conventions reflect the customer
+          managed key strategy.
+        </li>
+        <li>
+          <strong>Resilience:</strong> Review database recovery options and
+          scheduled health probes for coverage gaps.
+        </li>
+        <li>
+          <strong>Private Connectivity:</strong> Ensure the VPC has the expected
+          endpoints and routable paths for storage, database, and API access.
+        </li>
+        <li>
+          <strong>Application Configuration:</strong> Inspect runtime variables,
+          IAM permissions, and integrations so the Lambda writer operates
+          reliably.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Mission Playbook</h2>
+      <ol class="milestone-list">
+        <li>
+          <strong>Orientation:</strong>
+          Confirm the AWS CLI session is assuming the correct account and role.
+          Review the state manifest at
+          <code>state/serverless-lab-state.json</code> to understand which
+          resources were provisioned.
+        </li>
+        <li>
+          <strong>Data Controls:</strong>
+          Start with encryption posture, key usage, and tagging so the platform
+          meets policy requirements.
+        </li>
+        <li>
+          <strong>Network Paths:</strong>
+          Verify that private components resolve and communicate without
+          traversing public routes.
+        </li>
+        <li>
+          <strong>Runtime Integrity:</strong>
+          Review the Lambda configuration and downstream integrations to ensure
+          telemetry records reach both storage layers.
+        </li>
+        <li>
+          <strong>Availability Signals:</strong>
+          Restore automated tests or heartbeats that prove the ingest pipeline is
+          active.
+        </li>
+        <li>
+          <strong>Access Boundaries:</strong>
+          Constrain API Gateway invocation to the intended VPC interface
+          endpoint.
+        </li>
+        <li>
+          <strong>Proof of Completion:</strong>
+          Demonstrate that the Lambda writer stores payloads in DynamoDB and S3
+          while the API remains private.
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Cost &amp; Teardown</h2>
+      <ul>
+        <li>
+          The entire footprint uses on-demand, serverless resources. With no
+          sustained traffic, the cost remains under USD $5 for the lab duration.
+        </li>
+        <li>
+          Scheduled EventBridge invocations occur every 10 minutes (18 calls per
+          3-hour session), well within the free tier.
+        </li>
+        <li>
+          DynamoDB operates in on-demand mode; the empty table accrues negligible
+          charges.
+        </li>
+        <li>
+          CloudShell or the supervising lab orchestrator will clean up resources
+          automatically after expiry. Optionally delete manually via the state
+          identifiers if immediate teardown is required.
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Troubleshooting Tips</h2>
+      <ul>
+        <li>
+          Keep the state file handy. It contains every resource identifier needed
+          for fixes (VPC IDs, endpoint IDs, etc.).
+        </li>
+        <li>
+          Use <code>aws sts get-caller-identity</code> to confirm the active lab
+          role before making changes.
+        </li>
+        <li>
+          When editing JSON policies, prefer <code>aws ... --cli-input-json</code>
+          or pipelines into <code>python3</code> to avoid quoting errors.
+        </li>
+        <li>
+          After each adjustment, validate with targeted AWS CLI reads (for
+          example, describing encryption settings, endpoint attachments, or
+          scheduled rules) to confirm the correction worked as expected.
+        </li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>
+        &copy; Goutham Nanjundaswamy, Ethnus. This project is intended for
+        educational use inside managed training sandboxes.
+      </p>
+    </footer>
+  </body>
+</html>
