@@ -7,6 +7,7 @@ set -euo pipefail
 
 STATE_FILE="${STATE_FILE:-state/serverless-lab-state.json}"
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
+PROJECT_NAME="serverless-resiliency-lab"
 PROJECT_TAG_KEY="Project"
 PROJECT_TAG_VALUE="ServerlessLab"
 COST_TAG_KEY="CostCenter"
@@ -106,9 +107,21 @@ def has_encrypt_action(statement):
     actions = statement.get("Action", [])
     if isinstance(actions, str):
         actions = [actions]
+    normalized = [action.lower() for action in actions]
+    if "*" in normalized or "kms:*" in normalized:
+        return True
+    required = {
+        "kms:encrypt",
+        "kms:decrypt",
+        "kms:generatedatakey",
+        "kms:generatedatakeywithoutplaintext",
+        "kms:reencrypt*",
+        "kms:reencryptfrom",
+        "kms:reencryptto",
+    }
     return any(
-        action in {"kms:Encrypt", "kms:*", "*"} or action.startswith("kms:")
-        for action in actions
+        action in required or action.startswith("kms:reencrypt")
+        for action in normalized
     )
 
 
@@ -133,19 +146,33 @@ PY
 
 check_s3_encryption() {
   local encryption
+  local alias_arn="arn:aws:kms:${Region}:${AccountId}:alias/${PROJECT_NAME}"
   if ! encryption="$(aws s3api get-bucket-encryption --bucket "$S3BucketName" --region "$Region" 2>/dev/null)"; then
     return 1
   fi
-  if printf '%s' "$encryption" | python3 - "$KmsKeyArn" <<'PY'; then
+  if printf '%s' "$encryption" | python3 - "$KmsKeyArn" "$KmsKeyId" "$alias_arn" <<'PY'; then
 import json
 import sys
 
 data = json.loads(sys.stdin.read())
 rules = data.get("ServerSideEncryptionConfiguration", {}).get("Rules", [])
-key_arn = sys.argv[1]
+key_arn, key_id, alias_arn = sys.argv[1:4]
+
+
+def matches(candidate):
+    if not candidate:
+        return False
+    if candidate in {key_arn, key_id, alias_arn}:
+        return True
+    if candidate.endswith(key_id):
+        return True
+    return False
+
+
 for rule in rules:
     apply = rule.get("ApplyServerSideEncryptionByDefault", {})
-    if apply.get("SSEAlgorithm") == "aws:kms" and apply.get("KMSMasterKeyID") == key_arn:
+    key_id_value = apply.get("KMSMasterKeyID")
+    if apply.get("SSEAlgorithm") == "aws:kms" and matches(key_id_value):
         sys.exit(0)
 sys.exit(1)
 PY
