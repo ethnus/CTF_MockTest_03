@@ -48,8 +48,12 @@ check_aws_cli_version() {
     warn "Unable to determine AWS CLI version."
     exit 1
   fi
-  if [[ "$major" != "3" ]]; then
-    warn "AWS CLI v3 is required for this lab. Detected version $version."
+  if ! [[ "$major" =~ ^[0-9]+$ ]]; then
+    warn "Unrecognized AWS CLI version format: $version"
+    exit 1
+  fi
+  if (( major < 2 )); then
+    warn "AWS CLI v2 or later is required for this lab. Detected version $version."
     exit 1
   fi
   info "Detected AWS CLI version $version"

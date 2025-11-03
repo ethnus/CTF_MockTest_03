@@ -35,8 +35,12 @@ check_aws_cli_version() {
     fail "Unable to determine AWS CLI version."
     exit 1
   fi
-  if [[ "$major" != "3" ]]; then
-    fail "AWS CLI v3 required. Detected $version."
+  if ! [[ "$major" =~ ^[0-9]+$ ]]; then
+    fail "Unrecognized AWS CLI version format: $version."
+    exit 1
+  fi
+  if (( major < 2 )); then
+    fail "AWS CLI v2 or later required. Detected $version."
     exit 1
   fi
   info "Detected AWS CLI version $version"
@@ -68,7 +72,16 @@ check_kms_policy() {
 import json
 import sys
 
-policy = json.loads(sys.stdin.read())
+raw = sys.stdin.read()
+wrapper = json.loads(raw)
+policy_data = wrapper.get("Policy")
+if policy_data is None:
+    sys.exit(1)
+if isinstance(policy_data, str):
+    policy = json.loads(policy_data)
+else:
+    policy = policy_data
+
 principal = sys.argv[1]
 
 
@@ -278,7 +291,20 @@ check_api_policy() {
 import json
 import sys
 
-policy = json.loads(sys.stdin.read())
+raw = sys.stdin.read().strip()
+if not raw:
+    sys.exit(1)
+
+policy_data = json.loads(raw)
+if policy_data is None:
+    sys.exit(1)
+if isinstance(policy_data, str):
+    if not policy_data:
+        sys.exit(1)
+    policy = json.loads(policy_data)
+else:
+    policy = policy_data
+
 vpce = sys.argv[1]
 
 for statement in policy.get("Statement", []):
