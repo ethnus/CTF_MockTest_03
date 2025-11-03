@@ -35,8 +35,11 @@ check_aws_cli_version() {
   if [[ -z "$version" ]]; then
     fail "Unable to determine AWS CLI version."
   fi
-  if [[ "$major" != "3" ]]; then
-    fail "AWS CLI v3 required. Detected $version."
+  if ! [[ "$major" =~ ^[0-9]+$ ]]; then
+    fail "Unrecognized AWS CLI version format: $version."
+  fi
+  if (( major < 2 )); then
+    fail "AWS CLI v2 or later required. Detected $version."
   fi
   info "Detected AWS CLI version $version"
 }

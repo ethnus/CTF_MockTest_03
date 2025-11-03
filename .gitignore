@@ -2,3 +2,4 @@ state/*.json
 .DS_Store
 git-meta/
 state/*.db
+scripts/git-commit-push.sh

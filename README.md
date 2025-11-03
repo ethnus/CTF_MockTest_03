@@ -69,7 +69,7 @@ After installation you will see ten failing controls. Each must be remediated in
 - Sufficient service quotas for KMS keys, DynamoDB tables, Lambda functions, API Gateway REST APIs, and VPC endpoints in `us-east-1` or `us-west-2`.
 
 ### Local Tooling
-- **AWS CLI** v2.0 or later (credentialed for the target account)
+- **AWS CLI** v2.x (mainstream release used by all lab scripts)
 - **bash** (GNU or compatible)
 - **python3** (needed for inline evaluation helpers)
 - **zip** command (used to package the Lambda function)
@@ -141,8 +141,8 @@ These may be set prior to running `init.sh` and are read by `eval.sh`.
 |--------|---------|-------|
 | `scripts/init.sh` | Deploys the lab infrastructure with faults | Stops if state exists to avoid clobbering |
 | `scripts/eval.sh` | Runs remediation checks and prints the flag on success | Requires AWS CLI v2+, reads `STATE_FILE` |
-| `scripts/remediate.sh` | Instructor reference solution (do not share with competitors) | Not executed automatically |
-| `scripts/report.sh` | Augments evaluation with result logging for cohort tracking | Optional, requires writable `state/` |
+| `scripts/remediate.sh` | Instructor reference solution (do not share with competitors) | Requires AWS CLI v2+; not executed automatically |
+| `scripts/report.sh` | Augments evaluation with result logging for cohort tracking | Requires AWS CLI v2+ and writable `state/` |
 
 ## 🌐 Recommended Environment Setup (AWS CloudShell)
 
@@ -161,7 +161,7 @@ CloudShell home directories are 1 GB; `/workspace` offers more headroom for arti
 ## 🔧 Troubleshooting Guide
 
 - **`init.sh` aborts due to existing state**: Remove `state/serverless-lab-state.json` (or change `STATE_FILE`) only after manually cleaning AWS resources.
-- **`aws` command not found or wrong version**: Install AWS CLI v2 and ensure `aws --version` reports `2.x`.
+- **`aws` command not found or wrong version**: Install AWS CLI v2 (check `aws --version` for `aws-cli/2.x`).
 - **Evaluation still failing after a fix**: Re-run `bash eval.sh` to refresh cache. Use `aws` CLI commands echoed in the script to inspect current resource configuration.
 - **Permission errors when modifying resources**: Confirm you are assuming the lab role (`LabRole` by default) and that the Learner Lab session is active.
 - **Lambda packaging issues**: The bootstrap script bundles the function automatically; you do not need to re-upload unless you modified the code.
@@ -183,4 +183,3 @@ CloudShell home directories are 1 GB; `/workspace` offers more headroom for arti
 - Operating event-driven architectures with EventBridge schedules
 
 Good luck, and have fun restoring resiliency to the serverless stack! 🚀
-

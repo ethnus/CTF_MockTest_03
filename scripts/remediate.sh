@@ -35,8 +35,12 @@ check_aws_cli_version() {
     printf '[remediate][error] Unable to determine AWS CLI version.\n' >&2
     exit 1
   fi
-  if [[ "$major" != "3" ]]; then
-    printf '[remediate][error] AWS CLI v3 required. Detected %s.\n' "$version" >&2
+  if ! [[ "$major" =~ ^[0-9]+$ ]]; then
+    printf '[remediate][error] Unrecognized AWS CLI version format: %s.\n' "$version" >&2
+    exit 1
+  fi
+  if (( major < 2 )); then
+    printf '[remediate][error] AWS CLI v2 or later required. Detected %s.\n' "$version" >&2
     exit 1
   fi
   info "Detected AWS CLI version $version"
