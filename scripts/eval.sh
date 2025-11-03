@@ -110,7 +110,7 @@ if not found:
     sys.exit(1)
 PY
   then
-    pass "Encryption access controls verified"
+    info "Encryption access controls verified"
     return 0
   else
     fail "Encryption access controls still incomplete"
