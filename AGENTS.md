@@ -1,6 +1,25 @@
 # Workspace Guidance
 This guide combines our repository conventions with a high-level brief of the Serverless Resiliency Lab challenge so changes stay predictable and the troubleshooting effort remains focused.
 
+## Collaboration Log
+
+### Session History
+- 2025-11-05: Assistant resumed lab support and established a shared checklist of outstanding remediation tasks.
+
+### Active Checklist
+- [ ] Review `state/serverless-lab-state.json` to confirm current resource identifiers.
+- [ ] Verify IAM role (`LabRole`) session using `aws sts get-caller-identity`.
+- [ ] Audit KMS key policies and ensure encryption configuration meets Data Protection standards.
+- [ ] Validate VPC interface endpoints and routing for private connectivity of API Gateway and Lambda.
+- [ ] Exercise Lambda ingestion path and confirm writes persist in DynamoDB and archive to S3.
+- [ ] Restore EventBridge heartbeat schedule and confirm successful invocations.
+- [ ] Restrict API Gateway access to the intended private endpoint and document verification steps.
+- [ ] Capture proof of completion demonstrating private API access and dual-write success.
+
+### Git Ops Reminder
+- When working inside Google Drive synced folders, `.git` becomes read-only; always warn the user that direct `git add/commit/push` fails without special handling. Use the provided automation script instead of raw git commands.
+- Run the prep-and-push workflow with `bash scripts/git-commit-push.sh` whenever a commit or push is requested.
+
 ## Repository Guidelines
 
 ### Project Structure & Module Organization

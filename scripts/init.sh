@@ -163,10 +163,17 @@ main() {
     --query 'GroupId' \
     --output text)"
 
-  aws ec2 authorize-security-group-egress \
+  if ! sg_authorize_output="$(aws ec2 authorize-security-group-egress \
     --group-id "$sg_id" \
     --ip-permissions '[{"IpProtocol":"-1","IpRanges":[{"CidrIp":"0.0.0.0/0"}]}]' \
-    --region "$REGION" >/dev/null
+    --region "$REGION" 2>&1)"; then
+    if grep -q "InvalidPermission.Duplicate" <<<"$sg_authorize_output"; then
+      warn "Security group $SG_NAME already has the expected egress rule; continuing."
+    else
+      warn "Failed to authorize security group egress: $sg_authorize_output"
+      exit 1
+    fi
+  fi
 
   info "Provisioning S3 gateway endpoint with missing route table attachment (intentional fault)"
   s3_endpoint_id="$(aws ec2 create-vpc-endpoint \
