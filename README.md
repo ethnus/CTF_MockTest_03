@@ -64,54 +64,92 @@ After installation you will see ten failing controls. Each must be remediated in
 
 ## 📋 Prerequisites
 
-### Access Requirements
-- AWS Academy Learner Lab or sandbox AWS account with IAM role capable of creating the above resources.
-- Sufficient service quotas for KMS keys, DynamoDB tables, Lambda functions, API Gateway REST APIs, and VPC endpoints in `us-east-1` or `us-west-2`.
+### Required Access
+- AWS Academy Learner Lab or sandbox AWS account that allows provisioning KMS, S3, DynamoDB, Lambda, EventBridge, and VPC endpoints.
+- Permission to assume the lab IAM role (`LabRole` by default) and validate identity with `aws sts get-caller-identity`.
+- Network reachability from AWS CloudShell or a workstation to AWS service endpoints in `us-east-1` or `us-west-2`.
 
-### Local Tooling
-- **AWS CLI** v2.x (mainstream release used by all lab scripts)
-- **bash** (GNU or compatible)
-- **python3** (needed for inline evaluation helpers)
-- **zip** command (used to package the Lambda function)
+### Required Tools
+- **AWS CLI** v2.x (validated by `aws --version`; older releases are blocked by the scripts).
+- **bash** 4.x or later (GNU or compatible shell).
+- **python3** (invoked by helper snippets inside the shell scripts).
+- **zip** utility for Lambda packaging.
+- Optional: `script`, `tee`, or similar tooling to capture CLI transcripts for submission.
 
-`jq` is not required; all JSON parsing is handled in Python.
+`jq` is not required; evaluation logic uses Python for JSON parsing.
 
-### Baseline Knowledge
-- Familiarity with IAM and KMS key policies
-- Experience securing S3, DynamoDB, and Lambda workloads
-- Understanding of VPC endpoints and private API Gateway access
-- Comfort with AWS CLI troubleshooting and CloudWatch logs
+### Required Knowledge
+- Familiarity with IAM, KMS key policies, and encryption requirements.
+- Experience hardening S3, DynamoDB, and Lambda workloads.
+- Understanding of VPC interface/gateway endpoints and private API Gateway access.
+- Comfort with AWS CLI troubleshooting, CloudWatch Logs, and event-driven architectures.
 
 ## 🚀 Quick Start
 
-### Competitors
-1. **Clone the workspace**
+### For Competitors (Challenge Takers)
+
+1. **Prepare your CloudShell workspace**
    ```bash
-   git clone https://github.com/ethnus/serverless-resiliency-lab.git
-   cd serverless-resiliency-lab/scripts
+   sudo mkdir -p /workspace
+   sudo chown cloudshell-user:cloudshell-user /workspace
+   cd /workspace
    ```
-2. **Run the bootstrap**
+   Run `aws sts get-caller-identity` once to confirm you are assuming the Learner Lab role.
+
+2. **Clone the lab repository**
+   ```bash
+   git clone https://github.com/ethnus/CTF_MockTest_03.git
+   cd CTF_MockTest_03/scripts
+   ```
+
+3. **Deploy the broken environment**
    ```bash
    bash init.sh
    ```
-   Use `STATE_FILE` or `AWS_REGION` if you need non-default paths or regions.
-3. **Check the initial scorecard**
+   Optional overrides: export `AWS_REGION`, `STATE_FILE`, or `LAB_ROLE_NAME` before running for custom regions, state paths, or IAM role names.
+
+   **Quick one-liner (CloudShell ready):**
+   ```bash
+   sudo mkdir -p /workspace && sudo chown cloudshell-user:cloudshell-user /workspace && cd /workspace && git clone https://github.com/ethnus/CTF_MockTest_03.git && cd CTF_MockTest_03/scripts && bash init.sh && bash eval.sh
+   ```
+
+4. **Run the initial evaluation**
    ```bash
    bash eval.sh
    ```
-   Expect all ten controls to report `INCOMPLETE`.
-4. **Remediate in AWS**
-   - Apply fixes through the AWS Console or CLI.
-   - Re-run `bash eval.sh` after each change to monitor progress.
-5. **Capture the flag**
-   - Once all checks pass the script prints `FLAG{...}`. Record this for submission.
+   You should see ten `INCOMPLETE` checks. Treat each as a separate remediation task.
 
-### Instructors / Proctors
-1. Provision the environment with `bash init.sh`.
-2. Use `bash eval.sh` to verify the expected failure state before handing the account to participants.
-3. Optionally pre-create hints or guardrails for each control (see Challenge Breakdown).
-4. To demonstrate solutions, apply the fixes manually or through automations, then run `bash eval.sh` to confirm the clean state.
-5. Clean up resources manually (no teardown script is provided). Remove the API, Lambda, VPC endpoints, DynamoDB table, bucket, and CMK before ending the Learner Lab session.
+5. **Capture plans and artifacts**
+   - Store CLI transcripts, `eval` output, and remediation notes under `../state/` so they remain outside version control.
+   - Example: `mkdir -p ../state/artifacts && bash eval.sh | tee ../state/artifacts/eval-$(date +%Y%m%d%H%M).log`
+   - Keep the generated `state/serverless-lab-state.json` safe; it records all resource identifiers for the session.
+
+6. **Troubleshoot and remediate**
+   - Investigate with AWS Console and CLI (KMS, S3, DynamoDB, Lambda, EventBridge, VPC endpoints).
+   - Apply one fix at a time; re-run `bash eval.sh` after each change to confirm progress.
+
+7. **Finish the challenge**
+   - When all ten checks read `ACCEPTED`, the evaluator prints `FLAG{...}`. Capture the flag and document the remediation steps you used.
+
+### For Instructors (Challenge Administrators)
+
+1. **Provision the environment**
+   ```bash
+   cd CTF_MockTest_03/scripts
+   bash init.sh
+   ```
+2. **Validate the baseline**
+   ```bash
+   bash eval.sh
+   ```
+   Ensure all controls show `INCOMPLETE` before handing access to competitors.
+3. **Support the cohort**
+   - Share guardrails or hints aligned with the ten controls.
+   - Demonstrate fixes live by applying remediations and re-running `bash eval.sh` for proof.
+   - Use `bash remediate.sh` as a reference solution (do not distribute to competitors).
+   - Encourage competitors to keep plan files, remediation notes, and evaluation logs under `state/` (e.g., `state/artifacts/`) for consistent evidence capture.
+4. **Cleanup guidance**
+   - There is no automated teardown. Remove the API, Lambda function, DynamoDB table, bucket, KMS key, and VPC endpoints manually before the Learner Lab session ends to avoid residual costs.
 
 ## 🧭 Environment Variables
 - `STATE_FILE` – Path for deployment metadata (default `state/serverless-lab-state.json`).
@@ -150,8 +188,8 @@ These may be set prior to running `init.sh` and are read by `eval.sh`.
 sudo mkdir -p /workspace
 sudo chown cloudshell-user:cloudshell-user /workspace
 cd /workspace
-git clone https://github.com/ethnus/serverless-resiliency-lab.git
-cd serverless-resiliency-lab/scripts
+git clone https://github.com/ethnus/CTF_MockTest_03.git
+cd CTF_MockTest_03/scripts
 bash init.sh
 bash eval.sh
 ```
