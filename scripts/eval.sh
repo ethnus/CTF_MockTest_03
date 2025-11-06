@@ -69,7 +69,7 @@ check_kms_policy() {
     fail "Unable to read KMS key policy."
     return 1
   fi
-  if printf '%s' "$policy_json" | python3 - "$expected_principal" <<'PY'; then
+  if printf '%s' "$policy_json" | python3 - "$expected_principal" <<'PY'
 import json
 import sys
 
@@ -150,7 +150,7 @@ check_s3_encryption() {
   if ! encryption="$(aws s3api get-bucket-encryption --bucket "$S3BucketName" --region "$Region" 2>/dev/null)"; then
     return 1
   fi
-  if printf '%s' "$encryption" | python3 - "$KmsKeyArn" "$KmsKeyId" "$alias_arn" <<'PY'; then
+  if printf '%s' "$encryption" | python3 - "$KmsKeyArn" "$KmsKeyId" "$alias_arn" <<'PY'
 import json
 import sys
 
@@ -187,7 +187,7 @@ check_s3_tags() {
   if ! tags_json="$(aws s3api get-bucket-tagging --bucket "$S3BucketName" --region "$Region" 2>/dev/null)"; then
     return 1
   fi
-  if printf '%s' "$tags_json" | python3 - "$PROJECT_TAG_KEY" "$PROJECT_TAG_VALUE" "$COST_TAG_KEY" "$COST_TAG_VALUE" <<'PY'; then
+  if printf '%s' "$tags_json" | python3 - "$PROJECT_TAG_KEY" "$PROJECT_TAG_VALUE" "$COST_TAG_KEY" "$COST_TAG_VALUE" <<'PY'
 import json
 import sys
 
@@ -209,7 +209,7 @@ PY
 check_dynamodb_sse() {
   local table_json
   table_json="$(aws dynamodb describe-table --table-name "$DynamoTableName" --region "$Region")"
-  if printf '%s' "$table_json" | python3 - "$KmsKeyArn" <<'PY'; then
+  if printf '%s' "$table_json" | python3 - "$KmsKeyArn" <<'PY'
 import json
 import sys
 
@@ -233,7 +233,7 @@ PY
 check_dynamodb_pitr() {
   local summary_json
   summary_json="$(aws dynamodb describe-continuous-backups --table-name "$DynamoTableName" --region "$Region")"
-  if printf '%s' "$summary_json" | python3 - <<'PY'; then
+  if printf '%s' "$summary_json" | python3 - <<'PY'
 import json
 import sys
 
@@ -264,7 +264,7 @@ check_dynamodb_endpoint() {
 check_s3_endpoint_routes() {
   local routes_json
   routes_json="$(aws ec2 describe-vpc-endpoints --vpc-endpoint-ids "$S3EndpointId" --region "$Region" --query 'VpcEndpoints[0].RouteTableIds' --output json)"
-  if printf '%s' "$routes_json" | python3 - <<'PY'; then
+  if printf '%s' "$routes_json" | python3 - <<'PY'
 import json
 import sys
 
@@ -283,7 +283,7 @@ PY
 check_lambda_env() {
   local config_json
   config_json="$(aws lambda get-function-configuration --function-name "$LambdaArn" --region "$Region")"
-  if printf '%s' "$config_json" | python3 - "$DynamoTableName" <<'PY'; then
+  if printf '%s' "$config_json" | python3 - "$DynamoTableName" <<'PY'
 import json
 import sys
 
@@ -314,7 +314,7 @@ check_event_rule() {
 check_api_policy() {
   local policy_json
   policy_json="$(aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query 'policy')"
-  if printf '%s' "$policy_json" | python3 - "$ExecuteApiEndpointId" <<'PY'; then
+  if printf '%s' "$policy_json" | python3 - "$ExecuteApiEndpointId" <<'PY'
 import json
 import sys
 
