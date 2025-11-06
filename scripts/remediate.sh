@@ -588,8 +588,21 @@ PY
 verify_step() {
   local label="$1"
   local fn="$2"
+  local attempts=10
+  local delay=3
+  local success=0
   info "Verifying $label"
-  if "$fn"; then
+  for ((i=1; i<=attempts; i++)); do
+    if "$fn"; then
+      success=1
+      break
+    fi
+    if (( i < attempts )); then
+      warn "Verification not yet passing for: $label (attempt $i/${attempts}); retrying in ${delay}s"
+      sleep "$delay"
+    fi
+  done
+  if (( success )); then
     VERIFICATION_RESULTS+=("$label|OK")
     info "Verification passed: $label"
   else

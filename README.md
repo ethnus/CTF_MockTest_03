@@ -184,7 +184,7 @@ These may be set prior to running `init.sh` and are read by `eval.sh`.
 |--------|---------|-------|
 | `scripts/init.sh` | Deploys the lab infrastructure with faults | Stops if state exists to avoid clobbering |
 | `scripts/eval.sh` | Runs remediation checks and prints the flag on success | Requires AWS CLI v2+, reads `STATE_FILE` |
-| `scripts/remediate.sh` | Instructor reference solution (do not share with competitors) | Requires AWS CLI v2+; not executed automatically |
+| `scripts/remediate.sh` | Instructor reference solution (do not share with competitors) | Idempotent; includes verification with retries to account for AWS propagation |
 | `scripts/report.sh` | Augments evaluation with result logging for cohort tracking | Requires AWS CLI v2+ and writable `state/` |
 | `scripts/teardown.sh` | Destroys lab resources recorded in the state manifest | Accepts `--keep-state` to retain the manifest after cleanup |
 | `scripts/rebuild-state.sh` | Reconstructs `state/serverless-lab-state.json` when resources exist but the manifest is missing | Run from `scripts/` with AWS CLI v2 credentials |
