@@ -14,6 +14,7 @@ COST_TAG_VALUE="Training"
 PROJECT_NAME="serverless-resiliency-lab"
 
 declare -a VERIFICATION_RESULTS=()
+DEBUG=${DEBUG:-0}
 
 info() {
   printf '[remediate] %s\n' "$1"
@@ -608,7 +609,53 @@ verify_step() {
   else
     VERIFICATION_RESULTS+=("$label|FAILED")
     warn "Verification failed: $label"
+    if (( DEBUG )); then
+      debug_dump "$label"
+    fi
   fi
+}
+
+debug_dump() {
+  local label="$1"
+  printf '[remediate][debug] Dumping context for: %s\n' "$label"
+  case "$label" in
+    "KMS policy grants LabRole encrypt/decrypt")
+      printf '[remediate][debug] Expected principal: arn:aws:iam::%s:role/%s\n' "$AccountId" "$LabRoleName"
+      aws kms get-key-policy --key-id "$KmsKeyId" --policy-name default --region "$Region" || true
+      ;;
+    "S3 bucket default SSE-KMS configuration")
+      aws s3api get-bucket-encryption --bucket "$S3BucketName" --region "$Region" || true
+      ;;
+    "S3 bucket governance tags present")
+      aws s3api get-bucket-tagging --bucket "$S3BucketName" --region "$Region" || true
+      ;;
+    "DynamoDB table uses customer-managed CMK")
+      aws dynamodb describe-table --table-name "$DynamoTableName" --region "$Region" --query 'Table.SSEDescription' || true
+      ;;
+    "DynamoDB point-in-time recovery enabled")
+      aws dynamodb describe-continuous-backups --table-name "$DynamoTableName" --region "$Region" || true
+      ;;
+    "DynamoDB Gateway endpoint attached to VPC")
+      aws ec2 describe-vpc-endpoints --region "$Region" \
+        --filters "Name=vpc-id,Values=$VpcId" "Name=service-name,Values=com.amazonaws.${Region}.dynamodb" || true
+      ;;
+    "S3 Gateway endpoint associated with route table")
+      aws ec2 describe-vpc-endpoints --vpc-endpoint-ids "$S3EndpointId" --region "$Region" || true
+      ;;
+    "Lambda environment configured with correct table name")
+      aws lambda get-function-configuration --function-name "$LambdaArn" --region "$Region" --query 'Environment.Variables' || true
+      ;;
+    "EventBridge heartbeat rule enabled")
+      aws events describe-rule --name "$EventRuleName" --region "$Region" || true
+      ;;
+    "API Gateway policy targets execute-api endpoint")
+      aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query policy --output text || true
+      printf '\n[remediate][debug] Expected aws:SourceVpce: %s\n' "$ExecuteApiEndpointId"
+      ;;
+    *)
+      printf '[remediate][debug] No debug handler for "%s"\n' "$label"
+      ;;
+  esac
 }
 
 print_verification_summary() {
@@ -639,6 +686,19 @@ print_verification_summary() {
 }
 
 main() {
+  # Parse flags (e.g., --debug)
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --debug)
+        DEBUG=1
+        shift
+        ;;
+      *)
+        # ignore unknowns to remain forwards-compatible
+        shift
+        ;;
+    esac
+  done
   require_state
   check_aws_cli_version
   info "Using state file $STATE_FILE"

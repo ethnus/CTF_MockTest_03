@@ -127,6 +127,7 @@ After installation you will see ten failing controls. Each must be remediated in
 6. **Troubleshoot and remediate**
    - Investigate with AWS Console and CLI (KMS, S3, DynamoDB, Lambda, EventBridge, VPC endpoints).
    - Apply one fix at a time; re-run `bash eval.sh` after each change to confirm progress.
+   - Use `bash remediate.sh --debug` to print raw JSON for any failing controls when diagnosing issues.
 
 7. **Finish the challenge**
    - When all ten checks read `ACCEPTED`, the evaluator prints `FLAG{...}`. Capture the flag and document the remediation steps you used.
