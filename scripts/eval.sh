@@ -13,6 +13,9 @@ PROJECT_TAG_VALUE="ServerlessLab"
 COST_TAG_KEY="CostCenter"
 COST_TAG_VALUE="Training"
 
+declare -a CONTROL_RESULTS=()
+failures=0
+
 info() {
   printf '[eval] %s\n' "$1"
 }
@@ -395,6 +398,34 @@ PY
   fi
 }
 
+run_check() {
+  local id="$1"
+  local label="$2"
+  local fn="$3"
+
+  if "$fn"; then
+    CONTROL_RESULTS+=("$id|$label|ACCEPTED")
+    info "[$id] $label -> ACCEPTED"
+  else
+    CONTROL_RESULTS+=("$id|$label|INCOMPLETE")
+    info "[$id] $label -> INCOMPLETE"
+    ((failures+=1))
+  fi
+}
+
+print_scorecard() {
+  printf '\n[eval] Control Scorecard\n'
+  printf '---------------------------------------------------------------\n'
+  printf '| %-2s | %-45s | %-10s |\n' '#' 'Control' 'Status'
+  printf '---------------------------------------------------------------\n'
+  local entry
+  for entry in "${CONTROL_RESULTS[@]}"; do
+    IFS='|' read -r id label status <<<"$entry"
+    printf '| %-2s | %-45s | %-10s |\n' "$id" "$label" "$status"
+  done
+  printf '---------------------------------------------------------------\n'
+}
+
 main() {
   require_state
   check_aws_cli_version
@@ -406,18 +437,21 @@ main() {
 
   info "Evaluating remediation status for account $AccountId in $Region"
 
-  local failures=0
+  CONTROL_RESULTS=()
+  failures=0
 
-  check_kms_policy || ((failures+=1))
-  check_s3_encryption || ((failures+=1))
-  check_s3_tags || ((failures+=1))
-  check_dynamodb_sse || ((failures+=1))
-  check_dynamodb_pitr || ((failures+=1))
-  check_dynamodb_endpoint || ((failures+=1))
-  check_s3_endpoint_routes || ((failures+=1))
-  check_lambda_env || ((failures+=1))
-  check_event_rule || ((failures+=1))
-  check_api_policy || ((failures+=1))
+  run_check 1 "KMS policy grants LabRole encrypt/decrypt" check_kms_policy
+  run_check 2 "S3 bucket enforces default KMS encryption" check_s3_encryption
+  run_check 3 "S3 bucket has required governance tags" check_s3_tags
+  run_check 4 "DynamoDB table uses customer-managed KMS key" check_dynamodb_sse
+  run_check 5 "DynamoDB point-in-time recovery enabled" check_dynamodb_pitr
+  run_check 6 "DynamoDB Gateway endpoint attached to VPC" check_dynamodb_endpoint
+  run_check 7 "S3 Gateway endpoint associated with route table" check_s3_endpoint_routes
+  run_check 8 "Lambda environment configured with correct table name" check_lambda_env
+  run_check 9 "EventBridge heartbeat rule enabled" check_event_rule
+  run_check 10 "API Gateway policy targets correct VPC endpoint" check_api_policy
+
+  print_scorecard
 
   if [[ "$failures" -eq 0 ]]; then
     local flag_input="${AccountId}:${Region}:${ApiId}"
