@@ -352,15 +352,17 @@ ensure_s3_encryption() {
 
 verify_s3_encryption() {
   local alias_arn="arn:aws:kms:${Region}:${AccountId}:alias/${PROJECT_NAME}"
+  local alias_name="alias/${PROJECT_NAME}"
   local encryption
   if ! encryption="$(aws s3api get-bucket-encryption --bucket "$S3BucketName" --region "$Region" 2>/dev/null)"; then
     return 1
   fi
-  if printf '%s' "$encryption" | python3 - "$KmsKeyArn" "$KmsKeyId" "$alias_arn" <<'PY'
+  if ENC_JSON="$encryption" python3 - "$KmsKeyArn" "$KmsKeyId" "$alias_arn" "$alias_name" <<'PY'
 import json
+import os
 import sys
 
-raw = sys.stdin.read().strip()
+raw = os.environ.get("ENC_JSON", "").strip()
 if not raw:
     sys.exit(1)
 try:
@@ -369,13 +371,13 @@ except json.JSONDecodeError:
     sys.exit(1)
 
 rules = data.get("ServerSideEncryptionConfiguration", {}).get("Rules", [])
-key_arn, key_id, alias_arn = sys.argv[1:4]
+key_arn, key_id, alias_arn, alias_name = sys.argv[1:5]
 
 
 def matches(candidate):
     if not candidate:
         return False
-    if candidate in {key_arn, key_id, alias_arn}:
+    if candidate in {key_arn, key_id, alias_arn, alias_name}:
         return True
     if candidate.endswith(key_id):
         return True
@@ -401,11 +403,12 @@ verify_s3_tags() {
   if ! tags_json="$(aws s3api get-bucket-tagging --bucket "$S3BucketName" --region "$Region" 2>/dev/null)"; then
     return 1
   fi
-  if printf '%s' "$tags_json" | python3 - "$PROJECT_TAG_KEY" "$PROJECT_TAG_VALUE" "$COST_TAG_KEY" "$COST_TAG_VALUE" <<'PY'
+  if TAGS_JSON="$tags_json" python3 - "$PROJECT_TAG_KEY" "$PROJECT_TAG_VALUE" "$COST_TAG_KEY" "$COST_TAG_VALUE" <<'PY'
 import json
+import os
 import sys
 
-raw = sys.stdin.read().strip()
+raw = os.environ.get("TAGS_JSON", "").strip()
 if not raw:
     sys.exit(1)
 try:
@@ -572,11 +575,12 @@ EOF
 verify_dynamodb_sse() {
   local table_json
   table_json="$(aws dynamodb describe-table --table-name "$DynamoTableName" --region "$Region")"
-  if printf '%s' "$table_json" | python3 - "$KmsKeyArn" <<'PY'
+  if TABLE_JSON="$table_json" python3 - "$KmsKeyArn" <<'PY'
 import json
+import os
 import sys
 
-raw = sys.stdin.read().strip()
+raw = os.environ.get("TABLE_JSON", "").strip()
 if not raw:
     sys.exit(1)
 try:
@@ -602,11 +606,12 @@ PY
 verify_dynamodb_pitr() {
   local summary_json
   summary_json="$(aws dynamodb describe-continuous-backups --table-name "$DynamoTableName" --region "$Region")"
-  if printf '%s' "$summary_json" | python3 - <<'PY'
+  if SUMMARY_JSON="$summary_json" python3 - <<'PY'
 import json
+import os
 import sys
 
-raw = sys.stdin.read().strip()
+raw = os.environ.get("SUMMARY_JSON", "").strip()
 if not raw:
     sys.exit(1)
 try:
@@ -640,11 +645,12 @@ verify_dynamodb_endpoint() {
 verify_s3_endpoint_routes() {
   local routes_json
   routes_json="$(aws ec2 describe-vpc-endpoints --vpc-endpoint-ids "$S3EndpointId" --region "$Region" --query 'VpcEndpoints[0].RouteTableIds' --output json)"
-  if printf '%s' "$routes_json" | python3 - <<'PY'
+  if ROUTES_JSON="$routes_json" python3 - <<'PY'
 import json
+import os
 import sys
 
-raw = sys.stdin.read().strip()
+raw = os.environ.get("ROUTES_JSON", "").strip()
 if not raw:
     sys.exit(1)
 try:
@@ -666,11 +672,12 @@ PY
 verify_lambda_env() {
   local config_json
   config_json="$(aws lambda get-function-configuration --function-name "$LambdaArn" --region "$Region")"
-  if printf '%s' "$config_json" | python3 - "$DynamoTableName" <<'PY'
+  if CONFIG_JSON="$config_json" python3 - "$DynamoTableName" <<'PY'
 import json
+import os
 import sys
 
-raw = sys.stdin.read().strip()
+raw = os.environ.get("CONFIG_JSON", "").strip()
 if not raw:
     sys.exit(1)
 try:
@@ -702,11 +709,12 @@ verify_event_rule() {
 verify_api_policy() {
   local policy_json
   policy_json="$(aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query 'policy')"
-  if printf '%s' "$policy_json" | python3 - "$ExecuteApiEndpointId" <<'PY'
+  if POLICY_JSON="$policy_json" python3 - "$ExecuteApiEndpointId" <<'PY'
 import json
+import os
 import sys
 
-raw = sys.stdin.read().strip()
+raw = os.environ.get("POLICY_JSON", "").strip()
 if not raw:
     sys.exit(1)
 try:
