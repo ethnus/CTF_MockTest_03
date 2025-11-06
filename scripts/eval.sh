@@ -73,8 +73,13 @@ check_kms_policy() {
 import json
 import sys
 
-raw = sys.stdin.read()
-wrapper = json.loads(raw)
+raw = sys.stdin.read().strip()
+if not raw:
+    sys.exit(1)
+try:
+    wrapper = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(1)
 policy_data = wrapper.get("Policy")
 if policy_data is None:
     sys.exit(1)
@@ -154,7 +159,13 @@ check_s3_encryption() {
 import json
 import sys
 
-data = json.loads(sys.stdin.read())
+raw = sys.stdin.read().strip()
+if not raw:
+    sys.exit(1)
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(1)
 rules = data.get("ServerSideEncryptionConfiguration", {}).get("Rules", [])
 key_arn, key_id, alias_arn = sys.argv[1:4]
 
@@ -191,7 +202,13 @@ check_s3_tags() {
 import json
 import sys
 
-data = json.loads(sys.stdin.read())
+raw = sys.stdin.read().strip()
+if not raw:
+    sys.exit(1)
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(1)
 tagset = {tag["Key"]: tag["Value"] for tag in data.get("TagSet", [])}
 proj_key, proj_value, cost_key, cost_value = sys.argv[1:5]
 
@@ -213,7 +230,13 @@ check_dynamodb_sse() {
 import json
 import sys
 
-table = json.loads(sys.stdin.read())
+raw = sys.stdin.read().strip()
+if not raw:
+    sys.exit(1)
+try:
+    table = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(1)
 expected_key = sys.argv[1]
 
 sse = table["Table"].get("SSEDescription", {})
@@ -237,7 +260,13 @@ check_dynamodb_pitr() {
 import json
 import sys
 
-data = json.loads(sys.stdin.read())
+raw = sys.stdin.read().strip()
+if not raw:
+    sys.exit(1)
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(1)
 status = data.get("ContinuousBackupsDescription", {}).get("PointInTimeRecoveryDescription", {}).get("PointInTimeRecoveryStatus")
 sys.exit(0 if status == "ENABLED" else 1)
 PY
@@ -268,7 +297,13 @@ check_s3_endpoint_routes() {
 import json
 import sys
 
-data = json.loads(sys.stdin.read())
+raw = sys.stdin.read().strip()
+if not raw:
+    sys.exit(1)
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(1)
 if data and isinstance(data, list):
     sys.exit(0)
 sys.exit(1)
@@ -287,7 +322,13 @@ check_lambda_env() {
 import json
 import sys
 
-cfg = json.loads(sys.stdin.read())
+raw = sys.stdin.read().strip()
+if not raw:
+    sys.exit(1)
+try:
+    cfg = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(1)
 target = sys.argv[1]
 env = cfg.get("Environment", {}).get("Variables", {})
 if env.get("DDB_TABLE_NAME") == target:
@@ -321,14 +362,19 @@ import sys
 raw = sys.stdin.read().strip()
 if not raw:
     sys.exit(1)
-
-policy_data = json.loads(raw)
+try:
+    policy_data = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(1)
 if policy_data is None:
     sys.exit(1)
 if isinstance(policy_data, str):
     if not policy_data:
         sys.exit(1)
-    policy = json.loads(policy_data)
+    try:
+        policy = json.loads(policy_data)
+    except json.JSONDecodeError:
+        sys.exit(1)
 else:
     policy = policy_data
 
