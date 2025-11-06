@@ -232,6 +232,7 @@ verify_kms_policy() {
   fi
   if printf '%s' "$policy_json" | python3 - "$expected_lab_principal" "$expected_active_principal" <<'PY'
 import json
+import os
 import sys
 
 raw = sys.stdin.read().strip()
