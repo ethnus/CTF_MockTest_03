@@ -735,13 +735,39 @@ else:
     policy = policy_data
 
 vpce = sys.argv[1]
+# Value may be under StringEquals or StringEqualsIfExists and may be a string or list
+def vpce_matches(cond, expected):
+    if not isinstance(cond, dict):
+        return False
+    for op in ("StringEquals", "StringEqualsIfExists"):
+        sub = cond.get(op, {})
+        if not isinstance(sub, dict):
+            continue
+        val = sub.get("aws:SourceVpce")
+        if isinstance(val, str) and val.strip() == expected:
+            return True
+        if isinstance(val, list) and expected in [str(x).strip() for x in val]:
+            return True
+    return False
 
 for statement in policy.get("Statement", []):
     if statement.get("Effect") != "Allow":
         continue
-    condition = statement.get("Condition", {}).get("StringEquals", {})
-    if condition.get("aws:SourceVpce") == vpce:
+    condition = statement.get("Condition", {})
+    if vpce_matches(condition, vpce):
         sys.exit(0)
+
+# Debug context when not found
+if os.environ.get("DEBUG") in ("1", "true", "TRUE"):
+    try:
+        sys.stderr.write("[remediate][debug] API policy did not match expected VPCe; dumping conditions\n")
+        for stmt in policy.get("Statement", []):
+            if stmt.get("Effect") != "Allow":
+                continue
+            sys.stderr.write("[remediate][debug]  - Condition=%s\n" % json.dumps(stmt.get("Condition")))
+        sys.stderr.write("[remediate][debug]  - Expected aws:SourceVpce=%s\n" % vpce)
+    except Exception:
+        pass
 sys.exit(1)
 PY
   then
