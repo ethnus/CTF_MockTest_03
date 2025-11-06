@@ -708,7 +708,7 @@ verify_event_rule() {
 
 verify_api_policy() {
   local policy_json
-  policy_json="$(aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query 'policy' --output text)"
+  policy_json="$(aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query 'policy')"
   if POLICY_JSON="$policy_json" python3 - "$ExecuteApiEndpointId" <<'PY'
 import json
 import os
@@ -717,20 +717,22 @@ import sys
 raw = os.environ.get("POLICY_JSON", "").strip()
 if not raw:
     sys.exit(1)
-policy = None
 try:
-    # When --output text is used, raw is a JSON object string; parse directly
-    parsed = json.loads(raw)
-    if isinstance(parsed, dict):
-        policy = parsed
-    elif isinstance(parsed, str) and parsed:
-        # In case the API returned a JSON-encoded string, parse again
-        policy = json.loads(parsed)
+    policy_data = json.loads(raw)
 except json.JSONDecodeError:
-    policy = None
-
-if not isinstance(policy, dict):
     sys.exit(1)
+
+if policy_data is None:
+    sys.exit(1)
+if isinstance(policy_data, str):
+    if not policy_data:
+        sys.exit(1)
+    try:
+        policy = json.loads(policy_data)
+    except json.JSONDecodeError:
+        sys.exit(1)
+else:
+    policy = policy_data
 
 vpce = sys.argv[1]
 # Value may be under StringEquals or StringEqualsIfExists and may be a string or list
@@ -841,7 +843,7 @@ debug_dump() {
       aws events describe-rule --name "$EventRuleName" --region "$Region" || true
       ;;
     "API Gateway policy targets execute-api endpoint")
-      aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query policy --output text || true
+      aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query policy || true
       printf '\n[remediate][debug] Expected aws:SourceVpce: %s\n' "$ExecuteApiEndpointId"
       ;;
     *)
