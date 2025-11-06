@@ -62,80 +62,48 @@ PY
 
 ensure_kms_policy() {
   info "Ensuring KMS key policy allows Lab role usage"
-  local policy_json
-  policy_json="$(aws kms get-key-policy --key-id "$KmsKeyId" --policy-name default --region "$Region")"
-  updated_policy="$(printf '%s' "$policy_json" | python3 - "$AccountId" "$LabRoleName" <<'PY'
-import json
-import sys
-
-raw = sys.stdin.read().strip()
-if not raw:
-    sys.exit(1)
-try:
-    wrapper = json.loads(raw)
-except json.JSONDecodeError:
-    sys.exit(1)
-
-policy_data = wrapper.get("Policy")
-if policy_data is None:
-    sys.exit(1)
-if isinstance(policy_data, str):
-    try:
-        policy = json.loads(policy_data)
-    except json.JSONDecodeError:
-        sys.exit(1)
-else:
-    policy = policy_data
-
-account_id = sys.argv[1]
-role_name = sys.argv[2]
-
-principal_arn = f"arn:aws:iam::{account_id}:role/{role_name}"
-
-statement = {
-    "Sid": "AllowLabRoleUsage",
-    "Effect": "Allow",
-    "Principal": {"AWS": principal_arn},
-    "Action": [
+  local policy_file
+  policy_file="$(mktemp)"
+  cat <<EOF >"$policy_file"
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowRootAccountAdministration",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::${AccountId}:root"
+      },
+      "Action": "kms:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowLabRoleUsage",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::${AccountId}:role/${LabRoleName}"
+      },
+      "Action": [
         "kms:DescribeKey",
         "kms:Encrypt",
         "kms:Decrypt",
         "kms:GenerateDataKey",
         "kms:GenerateDataKeyWithoutPlaintext",
         "kms:ReEncrypt*"
-    ],
-    "Resource": "*"
+      ],
+      "Resource": "*"
+    }
+  ]
 }
-
-statements = policy.get("Statement", [])
-
-def normalize_stmt(stmt):
-    return stmt.get("Sid"), stmt.get("Principal"), sorted(
-        stmt.get("Action", []) if isinstance(stmt.get("Action"), list) else [stmt.get("Action")]
-    )
-
-target_sid = statement["Sid"]
-existing = None
-for idx, stmt in enumerate(statements):
-    if stmt.get("Sid") == target_sid:
-        existing = idx
-        break
-
-if existing is not None:
-    statements[existing] = statement
-else:
-    statements.append(statement)
-
-policy["Statement"] = statements
-print(json.dumps(policy))
-PY
-)"
+EOF
 
   aws kms put-key-policy \
     --key-id "$KmsKeyId" \
     --policy-name default \
-    --policy "$updated_policy" \
+    --policy file://"$policy_file" \
     --region "$Region" >/dev/null
+
+  rm -f "$policy_file"
 }
 
 ensure_s3_encryption() {
