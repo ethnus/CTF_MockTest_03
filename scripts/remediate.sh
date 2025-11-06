@@ -220,13 +220,17 @@ EOF
 }
 
 verify_kms_policy() {
-  local expected_principal="arn:aws:iam::${AccountId}:role/${LabRoleName}"
+  local expected_lab_principal="arn:aws:iam::${AccountId}:role/${LabRoleName}"
+  local expected_active_principal=""
+  if [[ -n "${LAB_ROLE_NAME:-}" ]]; then
+    expected_active_principal="arn:aws:iam::${AccountId}:role/${LAB_ROLE_NAME}"
+  fi
   local policy_json
   if ! policy_json="$(aws kms get-key-policy --key-id "$KmsKeyId" --policy-name default --region "$Region")"; then
     warn "Unable to read KMS key policy for verification."
     return 1
   fi
-  if printf '%s' "$policy_json" | python3 - "$expected_principal" <<'PY'
+  if printf '%s' "$policy_json" | python3 - "$expected_lab_principal" "$expected_active_principal" <<'PY'
 import json
 import sys
 
@@ -248,7 +252,8 @@ if isinstance(policy_data, str):
 else:
     policy = policy_data
 
-principal = sys.argv[1]
+expected1 = sys.argv[1]
+expected2 = sys.argv[2] if len(sys.argv) > 2 else ""
 
 
 def contains_principal(statement, principal_arn):
@@ -287,13 +292,37 @@ def has_encrypt_action(statement):
         for action in normalized
     )
 
+expected = [p for p in (expected1, expected2) if p]
+stmts = policy.get("Statement", [])
 
-found = any(
-    stmt.get("Effect") == "Allow"
-    and contains_principal(stmt, principal)
-    and has_encrypt_action(stmt)
-    for stmt in policy.get("Statement", [])
-)
+def matching_principals(statement):
+    return [p for p in expected if contains_principal(statement, p)]
+
+found = False
+for stmt in stmts:
+    if stmt.get("Effect") != "Allow":
+        continue
+    principals = matching_principals(stmt)
+    if principals and has_encrypt_action(stmt):
+        found = True
+        break
+
+# In debug, print some helpful context
+if not found and ("DEBUG" in os.environ and os.environ.get("DEBUG") in ("1", "true", "TRUE")):
+    try:
+        import pprint
+        sys.stderr.write("[remediate][debug] KMS policy principals/actions observed for troubleshooting\n")
+        for stmt in stmts:
+            if stmt.get("Effect") != "Allow":
+                continue
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            principals = stmt.get("Principal")
+            sys.stderr.write("[remediate][debug]  - Principal=%s Actions=%s\n" % (json.dumps(principals), json.dumps(actions)))
+        sys.stderr.write("[remediate][debug]  - Expected principals=%s\n" % json.dumps(expected))
+    except Exception:
+        pass
 
 sys.exit(0 if found else 1)
 PY
