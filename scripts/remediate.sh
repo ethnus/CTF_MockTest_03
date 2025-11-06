@@ -143,7 +143,7 @@ PY
 debug_overview() {
   (( DEBUG )) || return 0
   printf '[remediate][debug] Session identity (aws sts get-caller-identity)\n' >&2
-  aws sts get-caller-identity --region "$Region" || true
+  aws sts get-caller-identity --region "$Region" >/dev/null || true
   printf '[remediate][debug] State overview\n' >&2
   printf '[remediate][debug] Region=%s AccountId=%s LabRoleName=%s (LAB_ROLE_NAME=%s)\n' \
     "$Region" "${AccountId:-?}" "${LabRoleName:-?}" "${LAB_ROLE_NAME:-}" >&2
