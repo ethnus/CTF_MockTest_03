@@ -68,7 +68,25 @@ ensure_kms_policy() {
 import json
 import sys
 
-policy = json.loads(sys.stdin.read())
+raw = sys.stdin.read().strip()
+if not raw:
+    sys.exit(1)
+try:
+    wrapper = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(1)
+
+policy_data = wrapper.get("Policy")
+if policy_data is None:
+    sys.exit(1)
+if isinstance(policy_data, str):
+    try:
+        policy = json.loads(policy_data)
+    except json.JSONDecodeError:
+        sys.exit(1)
+else:
+    policy = policy_data
+
 account_id = sys.argv[1]
 role_name = sys.argv[2]
 
