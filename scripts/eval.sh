@@ -358,11 +358,12 @@ check_event_rule() {
 check_api_policy() {
   local policy_json
   policy_json="$(aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query 'policy')"
-  if printf '%s' "$policy_json" | python3 - "$ExecuteApiEndpointId" <<'PY'
+  if POLICY_JSON="$policy_json" python3 - "$ExecuteApiEndpointId" <<'PY'
 import json
+import os
 import sys
 
-raw = sys.stdin.read().strip()
+raw = os.environ.get("POLICY_JSON", "").strip()
 if not raw:
     sys.exit(1)
 try:
@@ -383,12 +384,36 @@ else:
 
 vpce = sys.argv[1]
 
+def vpce_matches(cond, expected):
+    if not isinstance(cond, dict):
+        return False
+    se = cond.get("StringEquals", {})
+    if isinstance(se, dict):
+        val = se.get("aws:SourceVpce")
+        if isinstance(val, str) and val.strip() == expected:
+            return True
+        if isinstance(val, list) and expected in [str(x).strip() for x in val]:
+            return True
+    # Tolerate StringEqualsIfExists too
+    se2 = cond.get("StringEqualsIfExists", {})
+    if isinstance(se2, dict):
+        val = se2.get("aws:SourceVpce")
+        if isinstance(val, str) and val.strip() == expected:
+            return True
+        if isinstance(val, list) and expected in [str(x).strip() for x in val]:
+            return True
+    return False
+
 for statement in policy.get("Statement", []):
     if statement.get("Effect") != "Allow":
         continue
-    condition = statement.get("Condition", {}).get("StringEquals", {})
-    if condition.get("aws:SourceVpce") == vpce:
+    condition = statement.get("Condition", {})
+    if vpce_matches(condition, vpce):
         sys.exit(0)
+
+# Fallback: raw string contains expected VPCe
+if vpce in raw:
+    sys.exit(0)
 sys.exit(1)
 PY
   then
