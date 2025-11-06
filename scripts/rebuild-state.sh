@@ -9,6 +9,8 @@ STATE_FILE="${STATE_FILE:-state/serverless-lab-state.json}"
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
 LAB_ROLE_NAME="${LAB_ROLE_NAME:-LabRole}"
 PROJECT_NAME="serverless-resiliency-lab"
+PROJECT_TAG_KEY="Project"
+PROJECT_TAG_VALUE="ServerlessLab"
 
 info() {
   printf '[rebuild-state] %s\n' "$1"
@@ -59,7 +61,7 @@ discover_resources() {
 
   VPC_ID="$(aws ec2 describe-vpcs \
     --region "$REGION" \
-    --filters "Name=tag:Name,Values=${PROJECT_NAME}-vpc" \
+    --filters "Name=tag:${PROJECT_TAG_KEY},Values=${PROJECT_TAG_VALUE}" \
     --query 'Vpcs[0].VpcId' \
     --output text)"
   if [[ -z "$VPC_ID" || "$VPC_ID" == "None" ]]; then
