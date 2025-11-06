@@ -439,6 +439,12 @@ main() {
 
   info "Evaluating remediation status for account $AccountId in $Region"
 
+  # Prefer the active assumed role if provided via LAB_ROLE_NAME for KMS checks
+  if [[ -n "${LAB_ROLE_NAME:-}" && "${LabRoleName:-}" != "$LAB_ROLE_NAME" ]]; then
+    info "Using active role from LAB_ROLE_NAME for checks: $LAB_ROLE_NAME (replacing $LabRoleName)"
+    LabRoleName="$LAB_ROLE_NAME"
+  fi
+
   CONTROL_RESULTS=()
   failures=0
 

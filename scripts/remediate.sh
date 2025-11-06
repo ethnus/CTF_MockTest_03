@@ -647,6 +647,12 @@ main() {
     export "$key"="$value"
   done < <(STATE_FILE="$STATE_FILE" load_state)
 
+  # Prefer the active assumed role if provided via LAB_ROLE_NAME
+  if [[ -n "${LAB_ROLE_NAME:-}" && "${LabRoleName:-}" != "$LAB_ROLE_NAME" ]]; then
+    info "Overriding LabRoleName ($LabRoleName) with active role ($LAB_ROLE_NAME)"
+    LabRoleName="$LAB_ROLE_NAME"
+  fi
+
   ensure_kms_policy
   ensure_s3_encryption
   ensure_dynamodb_encryption

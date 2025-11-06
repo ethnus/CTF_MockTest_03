@@ -134,6 +134,13 @@ After installation you will see ten failing controls. Each must be remediated in
    - Run `bash teardown.sh` (add `--keep-state` if you want to archive the state file) to remove the lab resources once your session is complete.
 9. **State accidentally removed?**
    - If `state/serverless-lab-state.json` is missing but the AWS resources are still present, run `bash rebuild-state.sh` to regenerate it before invoking `bash remediate.sh` or `bash eval.sh`.
+10. **Role alignment (Learner Lab)**
+   - If your assumed role isn’t `LabRole`, set `LabRoleName` to your active role so KMS policy checks line up:
+     ```bash
+     export LAB_ROLE_NAME="$(aws sts get-caller-identity --query Arn --output text | awk -F/ '/assumed-role/ {print $2}')"
+     export LabRoleName="$LAB_ROLE_NAME"
+     ```
+     Both `remediate.sh` and `eval.sh` honor `LAB_ROLE_NAME` and prefer it over the value in the state file.
 
 ### For Instructors (Challenge Administrators)
 
