@@ -45,9 +45,37 @@ discover_resources() {
     --query "Aliases[?AliasName=='alias/${PROJECT_NAME}'].TargetKeyId" \
     --output text)"
   if [[ -z "$KMS_KEY_ID" || "$KMS_KEY_ID" == "None" ]]; then
-    error "Could not locate KMS key alias alias/${PROJECT_NAME}."
+    info "KMS alias alias/${PROJECT_NAME} not found; attempting fallback discovery."
+    # Try to discover from DynamoDB SSE
+    DYNAMO_TABLE_NAME_FALLBACK="${PROJECT_NAME}-telemetry"
+    DDB_KMS_ARN="$(aws dynamodb describe-table \
+      --table-name "$DYNAMO_TABLE_NAME_FALLBACK" \
+      --region "$REGION" \
+      --query 'Table.SSEDescription.KMSMasterKeyArn' \
+      --output text 2>/dev/null || true)"
+    if [[ -n "$DDB_KMS_ARN" && "$DDB_KMS_ARN" != "None" ]]; then
+      KMS_KEY_ARN="$DDB_KMS_ARN"
+      KMS_KEY_ID="$(aws kms describe-key --key-id "$KMS_KEY_ARN" --region "$REGION" --query 'KeyMetadata.KeyId' --output text)"
+    else
+      # Try to discover from S3 bucket default encryption
+      S3_BUCKET_NAME_FALLBACK="${PROJECT_NAME}-bucket-${ACCOUNT_ID}-${REGION}"
+      S3_KMS_ID="$(aws s3api get-bucket-encryption --bucket "$S3_BUCKET_NAME_FALLBACK" --region "$REGION" \
+        --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.KMSMasterKeyID' \
+        --output text 2>/dev/null || true)"
+      if [[ -n "$S3_KMS_ID" && "$S3_KMS_ID" != "None" ]]; then
+        # describe-key accepts key-id, ARN, alias, or alias ARN
+        KMS_KEY_ID="$(aws kms describe-key --key-id "$S3_KMS_ID" --region "$REGION" --query 'KeyMetadata.KeyId' --output text)"
+        KMS_KEY_ARN="$(aws kms describe-key --key-id "$S3_KMS_ID" --region "$REGION" --query 'KeyMetadata.Arn' --output text)"
+      fi
+    fi
+    if [[ -z "${KMS_KEY_ID:-}" || "$KMS_KEY_ID" == "None" ]]; then
+      error "Could not discover a KMS key via alias/DynamoDB/S3. Manually create or point alias alias/${PROJECT_NAME}."
+    fi
+    # Optionally re-create the expected alias to restore consistency
+    aws kms create-alias --alias-name "alias/${PROJECT_NAME}" --target-key-id "$KMS_KEY_ID" --region "$REGION" >/dev/null 2>&1 || true
+  else
+    KMS_KEY_ARN="$(aws kms describe-key --key-id "$KMS_KEY_ID" --region "$REGION" --query 'KeyMetadata.Arn' --output text)"
   fi
-  KMS_KEY_ARN="$(aws kms describe-key --key-id "$KMS_KEY_ID" --region "$REGION" --query 'KeyMetadata.Arn' --output text)"
 
   S3_BUCKET_NAME="${PROJECT_NAME}-bucket-${ACCOUNT_ID}-${REGION}"
   if ! aws s3api head-bucket --bucket "$S3_BUCKET_NAME" >/dev/null 2>&1; then

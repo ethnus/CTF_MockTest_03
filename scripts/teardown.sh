@@ -61,19 +61,27 @@ if [[ ! -f "$STATE_FILE" ]]; then
   exit 1
 fi
 
-eval "$(
-  python3 - <<'PY'
+exports=""
+if ! exports="$(STATE_FILE="$STATE_FILE" python3 - <<'PY'
 import json
 import os
 import shlex
+import sys
 
-with open(os.environ["STATE_FILE"], "r", encoding="utf-8") as fh:
+state_path = os.environ.get("STATE_FILE")
+if not state_path:
+    sys.exit(1)
+with open(state_path, "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
 for key, value in data.items():
     print(f'export {key}={shlex.quote(str(value))}')
 PY
-)"
+)"; then
+  warn "Failed to read or parse state from $STATE_FILE. Aborting."
+  exit 1
+fi
+eval "$exports"
 
 Region="${Region:-${AWS_REGION:-${AWS_DEFAULT_REGION:-}}}"
 
