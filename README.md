@@ -127,7 +127,7 @@ After installation you will see ten failing controls. Each must be remediated in
 6. **Troubleshoot and remediate**
    - Investigate with AWS Console and CLI (KMS, S3, DynamoDB, Lambda, EventBridge, VPC endpoints).
    - Apply one fix at a time; re-run `bash eval.sh` after each change to confirm progress.
-   - Use `bash remediate.sh --debug` to print raw JSON for any failing controls when diagnosing issues.
+   - Use `bash remediate.sh --debug` for high-verbosity tracing: prints each AWS command, exit code, elapsed time, and truncated stdout/stderr, plus a plan and state overview to aid diagnosis.
 
 7. **Finish the challenge**
    - When all ten checks read `ACCEPTED`, the evaluator prints `FLAG{...}`. Capture the flag and document the remediation steps you used.
@@ -168,6 +168,8 @@ After installation you will see ten failing controls. Each must be remediated in
 - `STATE_FILE` – Path for deployment metadata (default `state/serverless-lab-state.json`).
 - `AWS_REGION` or `AWS_DEFAULT_REGION` – Target region (`us-east-1` or `us-west-2` allowed).
 - `LAB_ROLE_NAME` – IAM role assumed by the evaluation checks (default `LabRole`).
+ - `DEBUG` – Set to `1` to enable verbose tracing in `remediate.sh` (or pass `--debug`).
+ - `DEBUG_MAX_BYTES` – Max bytes of stdout/stderr echoed per AWS CLI call in debug mode (default `4096`).
 
 These may be set prior to running `init.sh` and are read by `eval.sh`.
 

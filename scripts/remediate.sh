@@ -15,6 +15,7 @@ PROJECT_NAME="serverless-resiliency-lab"
 
 declare -a VERIFICATION_RESULTS=()
 DEBUG=${DEBUG:-0}
+DEBUG_MAX_BYTES=${DEBUG_MAX_BYTES:-4096}
 
 info() {
   printf '[remediate] %s\n' "$1"
@@ -27,6 +28,77 @@ warn() {
 error() {
   printf '[remediate][error] %s\n' "$1" >&2
   exit 1
+}
+
+# Debug-aware AWS CLI wrapper
+# - Echoes the command, exit code, duration, and truncated stdout/stderr to stderr when DEBUG=1
+# - Preserves stdout for command substitutions and pipelines
+aws() {
+  local dbg=${DEBUG:-0}
+  # Pass-through for version to preserve original stderr/stdout behavior
+  if [[ "${1:-}" == "--version" ]]; then
+    command aws "$@"
+    return $?
+  fi
+  # Print the command we are about to run (quoted args)
+  if (( dbg )); then
+    {
+      printf '[remediate][debug] > aws'
+      for arg in "$@"; do
+        printf ' %q' "$arg"
+      done
+      printf '\n'
+    } >&2
+  fi
+
+  local tmp_out tmp_err rc start end dur
+  tmp_out="$(mktemp)"
+  tmp_err="$(mktemp)"
+  start=$(date +%s)
+  command aws "$@" 1>"$tmp_out" 2>"$tmp_err"
+  rc=$?
+  end=$(date +%s)
+  dur=$(( end - start ))
+
+  if (( dbg )); then
+    # Report status line
+    printf '[remediate][debug] < exit=%d time=%ss\n' "$rc" "$dur" >&2
+
+    # Dump (possibly truncated) stdout/stderr for visibility
+    # Avoid flooding logs with huge payloads
+    local out_size err_size
+    out_size=$(wc -c <"$tmp_out" | tr -d ' ')
+    err_size=$(wc -c <"$tmp_err" | tr -d ' ')
+
+    if [[ -s "$tmp_out" ]]; then
+      printf '[remediate][debug] < stdout (%s bytes)%s:\n' "$out_size" \
+        $([[ "$out_size" -gt "$DEBUG_MAX_BYTES" ]] && printf ' [first %s]' "$DEBUG_MAX_BYTES" || printf '') >&2
+      if [[ "$out_size" -gt "$DEBUG_MAX_BYTES" ]]; then
+        head -c "$DEBUG_MAX_BYTES" "$tmp_out" >&2
+        printf '\n[remediate][debug] < stdout (truncated)\n' >&2
+      else
+        cat "$tmp_out" >&2
+        printf '\n' >&2
+      fi
+    fi
+
+    if [[ -s "$tmp_err" ]]; then
+      printf '[remediate][debug] < stderr (%s bytes)%s:\n' "$err_size" \
+        $([[ "$err_size" -gt "$DEBUG_MAX_BYTES" ]] && printf ' [first %s]' "$DEBUG_MAX_BYTES" || printf '') >&2
+      if [[ "$err_size" -gt "$DEBUG_MAX_BYTES" ]]; then
+        head -c "$DEBUG_MAX_BYTES" "$tmp_err" >&2
+        printf '\n[remediate][debug] < stderr (truncated)\n' >&2
+      else
+        cat "$tmp_err" >&2
+        printf '\n' >&2
+      fi
+    fi
+  fi
+
+  # Preserve stdout for the caller
+  cat "$tmp_out"
+  rm -f "$tmp_out" "$tmp_err"
+  return "$rc"
 }
 
 require_state() {
@@ -68,8 +140,41 @@ for key, value in data.items():
 PY
 }
 
+debug_overview() {
+  (( DEBUG )) || return 0
+  printf '[remediate][debug] Session identity (aws sts get-caller-identity)\n' >&2
+  aws sts get-caller-identity --region "$Region" || true
+  printf '[remediate][debug] State overview\n' >&2
+  printf '[remediate][debug] Region=%s AccountId=%s LabRoleName=%s (LAB_ROLE_NAME=%s)\n' \
+    "$Region" "${AccountId:-?}" "${LabRoleName:-?}" "${LAB_ROLE_NAME:-}" >&2
+  printf '[remediate][debug] Resources: VpcId=%s RouteTableId=%s ExecuteApiEndpointId=%s S3EndpointId=%s\n' \
+    "${VpcId:-?}" "${RouteTableId:-?}" "${ExecuteApiEndpointId:-?}" "${S3EndpointId:-?}" >&2
+  printf '[remediate][debug] Storage: S3BucketName=%s DynamoTableName=%s KmsKeyArn=%s KmsKeyId=%s\n' \
+    "${S3BucketName:-?}" "${DynamoTableName:-?}" "${KmsKeyArn:-?}" "${KmsKeyId:-?}" >&2
+  printf '[remediate][debug] Compute: LambdaArn=%s EventRuleName=%s ApiId=%s\n' \
+    "${LambdaArn:-?}" "${EventRuleName:-?}" "${ApiId:-?}" >&2
+}
+
+print_plan() {
+  (( DEBUG )) || return 0
+  printf '[remediate][debug] Remediation plan (ensure then verify):\n' >&2
+  printf '  - Ensure KMS key policy for LabRole\n' >&2
+  printf '  - Enforce S3 default SSE-KMS and governance tags\n' >&2
+  printf '  - Align DynamoDB SSE (CMK) and enable PITR\n' >&2
+  printf '  - Ensure DynamoDB Gateway endpoint is present\n' >&2
+  printf '  - Re-attach S3 Gateway endpoint route table\n' >&2
+  printf '  - Update Lambda environment variables\n' >&2
+  printf '  - Enable EventBridge heartbeat rule\n' >&2
+  printf '  - Restrict API Gateway policy to execute-api VPCe\n' >&2
+  printf '  - Verify each control with retries (10 attempts, 3s delay)\n' >&2
+}
+
 ensure_kms_policy() {
   info "Ensuring KMS key policy allows Lab role usage"
+  if (( DEBUG )); then
+    printf '[remediate][debug] KMS KeyId=%s KeyArn=%s Role=%s AccountId=%s\n' \
+      "$KmsKeyId" "$KmsKeyArn" "$LabRoleName" "$AccountId" >&2
+  fi
   local policy_file
   policy_file="$(mktemp)"
   cat <<EOF >"$policy_file"
@@ -201,6 +306,9 @@ PY
 
 ensure_s3_encryption() {
   info "Enforcing S3 bucket SSE-KMS with custom CMK"
+  if (( DEBUG )); then
+    printf '[remediate][debug] S3BucketName=%s KmsKeyArn=%s\n' "$S3BucketName" "$KmsKeyArn" >&2
+  fi
   aws s3api put-bucket-encryption \
     --bucket "$S3BucketName" \
     --server-side-encryption-configuration "{\"Rules\":[{\"ApplyServerSideEncryptionByDefault\":{\"SSEAlgorithm\":\"aws:kms\",\"KMSMasterKeyID\":\"$KmsKeyArn\"}}]}" \
@@ -289,6 +397,9 @@ PY
 
 ensure_dynamodb_encryption() {
   info "Aligning DynamoDB table encryption and backups"
+  if (( DEBUG )); then
+    printf '[remediate][debug] DynamoTableName=%s KmsKeyArn=%s\n' "$DynamoTableName" "$KmsKeyArn" >&2
+  fi
   local table_json action
   table_json="$(aws dynamodb describe-table --table-name "$DynamoTableName" --region "$Region")"
   action="$(printf '%s' "$table_json" | python3 - "$KmsKeyArn" <<'PY'
@@ -336,6 +447,9 @@ PY
 
 ensure_dynamodb_endpoint() {
   info "Ensuring DynamoDB gateway endpoint exists"
+  if (( DEBUG )); then
+    printf '[remediate][debug] VpcId=%s RouteTableId=%s\n' "$VpcId" "$RouteTableId" >&2
+  fi
   local existing
   existing="$(aws ec2 describe-vpc-endpoints \
     --filters "Name=vpc-id,Values=$VpcId" "Name=service-name,Values=com.amazonaws.${Region}.dynamodb" \
@@ -359,6 +473,9 @@ ensure_dynamodb_endpoint() {
 
 repair_s3_endpoint() {
   info "Re-attaching route table to S3 gateway endpoint"
+  if (( DEBUG )); then
+    printf '[remediate][debug] S3EndpointId=%s RouteTableId=%s\n' "$S3EndpointId" "$RouteTableId" >&2
+  fi
   aws ec2 modify-vpc-endpoint \
     --vpc-endpoint-id "$S3EndpointId" \
     --add-route-table-ids "$RouteTableId" \
@@ -367,6 +484,10 @@ repair_s3_endpoint() {
 
 repair_lambda_environment() {
   info "Updating Lambda environment variables"
+  if (( DEBUG )); then
+    printf '[remediate][debug] LambdaArn=%s DDB_TABLE_NAME=%s S3_BUCKET_NAME=%s\n' \
+      "$LambdaArn" "$DynamoTableName" "$S3BucketName" >&2
+  fi
   aws lambda update-function-configuration \
     --function-name "$LambdaArn" \
     --environment "Variables={DDB_TABLE_NAME=$DynamoTableName,S3_BUCKET_NAME=$S3BucketName,LOG_LEVEL=INFO}" \
@@ -375,11 +496,17 @@ repair_lambda_environment() {
 
 enable_eventbridge_rule() {
   info "Enabling EventBridge heartbeat rule"
+  if (( DEBUG )); then
+    printf '[remediate][debug] EventRuleName=%s\n' "$EventRuleName" >&2
+  fi
   aws events enable-rule --name "$EventRuleName" --region "$Region" >/dev/null
 }
 
 repair_api_policy() {
   info "Aligning API Gateway resource policy with execute-api endpoint"
+  if (( DEBUG )); then
+    printf '[remediate][debug] RestApiId=%s ExecuteApiEndpointId=%s\n' "$ApiId" "$ExecuteApiEndpointId" >&2
+  fi
   local policy_file
   policy_file="$(mktemp)"
   cat <<EOF >"$policy_file"
@@ -594,6 +721,9 @@ verify_step() {
   local success=0
   info "Verifying $label"
   for ((i=1; i<=attempts; i++)); do
+    if (( DEBUG )); then
+      printf '[remediate][debug] verify attempt %d/%d: %s\n' "$i" "$attempts" "$label" >&2
+    fi
     if "$fn"; then
       success=1
       break
@@ -712,6 +842,9 @@ main() {
     info "Overriding LabRoleName ($LabRoleName) with active role ($LAB_ROLE_NAME)"
     LabRoleName="$LAB_ROLE_NAME"
   fi
+
+  debug_overview
+  print_plan
 
   ensure_kms_policy
   ensure_s3_encryption
