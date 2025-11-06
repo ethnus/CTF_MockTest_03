@@ -288,10 +288,38 @@ PY
 
 ensure_dynamodb_encryption() {
   info "Aligning DynamoDB table encryption and backups"
-  aws dynamodb update-table \
-    --table-name "$DynamoTableName" \
-    --sse-specification "Enabled=true,SSEType=KMS,KMSMasterKeyId=$KmsKeyArn" \
-    --region "$Region" >/dev/null
+  local table_json action
+  table_json="$(aws dynamodb describe-table --table-name "$DynamoTableName" --region "$Region")"
+  action="$(printf '%s' "$table_json" | python3 - "$KmsKeyArn" <<'PY'
+import json
+import sys
+
+raw = sys.stdin.read().strip()
+if not raw:
+    print("update")
+    sys.exit(0)
+try:
+    table = json.loads(raw)
+except json.JSONDecodeError:
+    print("update")
+    sys.exit(0)
+desired = sys.argv[1]
+sse = table.get("Table", {}).get("SSEDescription", {})
+if sse.get("Status") == "ENABLED" and sse.get("KMSMasterKeyArn") == desired:
+    print("skip")
+else:
+    print("update")
+PY
+)"
+
+  if [[ "$action" == "update" ]]; then
+    aws dynamodb update-table \
+      --table-name "$DynamoTableName" \
+      --sse-specification "Enabled=true,SSEType=KMS,KMSMasterKeyId=$KmsKeyArn" \
+      --region "$Region" >/dev/null
+  else
+    info "DynamoDB table already uses the expected CMK; skipping update-table call"
+  fi
 
   aws dynamodb update-continuous-backups \
     --table-name "$DynamoTableName" \
