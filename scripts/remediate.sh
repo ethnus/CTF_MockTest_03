@@ -313,10 +313,16 @@ PY
 )"
 
   if [[ "$action" == "update" ]]; then
-    aws dynamodb update-table \
+    if ! update_output="$(aws dynamodb update-table \
       --table-name "$DynamoTableName" \
       --sse-specification "Enabled=true,SSEType=KMS,KMSMasterKeyId=$KmsKeyArn" \
-      --region "$Region" >/dev/null
+      --region "$Region" 2>&1)"; then
+      if grep -q "Table is already encrypted with given KMSMasterKeyId" <<<"$update_output"; then
+        info "DynamoDB table already uses the expected CMK; skipping update-table call"
+      else
+        error "Failed to update DynamoDB table encryption: $update_output"
+      fi
+    fi
   else
     info "DynamoDB table already uses the expected CMK; skipping update-table call"
   fi
