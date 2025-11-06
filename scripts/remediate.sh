@@ -600,15 +600,15 @@ verify_step() {
 
 print_verification_summary() {
   printf '\n[remediate] Verification Summary\n'
-  printf '------------------------------------------------------------\n'
+  printf -- '------------------------------------------------------------\n'
   printf '| %-55s | %-6s |\n' 'Control' 'Status'
-  printf '------------------------------------------------------------\n'
+  printf -- '------------------------------------------------------------\n'
   local entry
   for entry in "${VERIFICATION_RESULTS[@]}"; do
     IFS='|' read -r label status <<<"$entry"
     printf '| %-55s | %-6s |\n' "$label" "$status"
   done
-  printf '------------------------------------------------------------\n'
+  printf -- '------------------------------------------------------------\n'
 
   local has_fail=0
   for entry in "${VERIFICATION_RESULTS[@]}"; do
@@ -620,7 +620,7 @@ print_verification_summary() {
   done
 
   if (( has_fail )); then
-    printf '[remediate][error] Verification detected unresolved controls. Review the summary above.\n' >&2
+    printf -- '[remediate][error] Verification detected unresolved controls. Review the summary above.\n' >&2
     exit 1
   fi
 }
