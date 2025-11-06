@@ -72,7 +72,7 @@ Restore a private ingestion pipeline that accepts JSON telemetry, writes to Dyna
 - Serverless/on-demand footprint keeps lab costs under roughly USD $5 without sustained load.
 - EventBridge schedule triggers ~18 times per 3-hour session, staying within free-tier limits.
 - DynamoDB on-demand accrues negligible charges when idle.
-- Environment auto-tears down after the lab; manual cleanup is possible via state file resource IDs.
+- Run `bash scripts/teardown.sh` (pass `--keep-state` when evidence is required) to remove lab resources using the recorded state manifest.
 
 ### Troubleshooting Shortlist
 - Keep the state manifest nearby for resource IDs (VPC, endpoints, keys).

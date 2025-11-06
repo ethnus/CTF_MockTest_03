@@ -295,14 +295,14 @@ main() {
     --source-arn "arn:aws:execute-api:${REGION}:${ACCOUNT_ID}:${api_id}/*/POST/ingest" \
     --region "$REGION" >/dev/null
 
+  apply_misconfigured_api_policy "$api_id" "$ACCOUNT_ID" "$REGION"
+
   deployment_id="$(aws apigateway create-deployment \
     --rest-api-id "$api_id" \
     --stage-name "v1" \
     --region "$REGION" \
     --query 'id' \
     --output text)"
-
-  apply_misconfigured_api_policy "$api_id" "$ACCOUNT_ID" "$REGION"
 
   cat >"$STATE_FILE" <<EOF
 {

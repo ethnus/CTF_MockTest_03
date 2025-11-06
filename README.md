@@ -130,6 +130,8 @@ After installation you will see ten failing controls. Each must be remediated in
 
 7. **Finish the challenge**
    - When all ten checks read `ACCEPTED`, the evaluator prints `FLAG{...}`. Capture the flag and document the remediation steps you used.
+8. **Clean up when finished**
+   - Run `bash teardown.sh` (add `--keep-state` if you want to archive the state file) to remove the lab resources once your session is complete.
 
 ### For Instructors (Challenge Administrators)
 
@@ -149,7 +151,7 @@ After installation you will see ten failing controls. Each must be remediated in
    - Use `bash remediate.sh` as a reference solution (do not distribute to competitors).
    - Encourage competitors to keep plan files, remediation notes, and evaluation logs under `state/` (e.g., `state/artifacts/`) for consistent evidence capture.
 4. **Cleanup guidance**
-   - There is no automated teardown. Remove the API, Lambda function, DynamoDB table, bucket, KMS key, and VPC endpoints manually before the Learner Lab session ends to avoid residual costs.
+   - When the cohort wraps, run `bash teardown.sh` to remove deployed resources. Use `bash teardown.sh --keep-state` if you need to retain the manifest for grading or evidence.
 
 ## 🧭 Environment Variables
 - `STATE_FILE` – Path for deployment metadata (default `state/serverless-lab-state.json`).
@@ -181,6 +183,7 @@ These may be set prior to running `init.sh` and are read by `eval.sh`.
 | `scripts/eval.sh` | Runs remediation checks and prints the flag on success | Requires AWS CLI v2+, reads `STATE_FILE` |
 | `scripts/remediate.sh` | Instructor reference solution (do not share with competitors) | Requires AWS CLI v2+; not executed automatically |
 | `scripts/report.sh` | Augments evaluation with result logging for cohort tracking | Requires AWS CLI v2+ and writable `state/` |
+| `scripts/teardown.sh` | Destroys lab resources recorded in the state manifest | Accepts `--keep-state` to retain the manifest after cleanup |
 
 ## 🌐 Recommended Environment Setup (AWS CloudShell)
 
@@ -192,6 +195,8 @@ git clone https://github.com/ethnus/CTF_MockTest_03.git
 cd CTF_MockTest_03/scripts
 bash init.sh
 bash eval.sh
+# ...when you're finished with the lab
+# bash teardown.sh
 ```
 
 CloudShell home directories are 1 GB; `/workspace` offers more headroom for artifacts and zip builds.
@@ -203,7 +208,7 @@ CloudShell home directories are 1 GB; `/workspace` offers more headroom for arti
 - **Evaluation still failing after a fix**: Re-run `bash eval.sh` to refresh cache. Use `aws` CLI commands echoed in the script to inspect current resource configuration.
 - **Permission errors when modifying resources**: Confirm you are assuming the lab role (`LabRole` by default) and that the Learner Lab session is active.
 - **Lambda packaging issues**: The bootstrap script bundles the function automatically; you do not need to re-upload unless you modified the code.
-- **Cleaning up**: There is no `teardown.sh`. Delete the API Gateway deployment, Lambda, DynamoDB table, bucket (after emptying), VPC endpoints, security group, subnet, VPC, and KMS key manually before closing the lab.
+- **Cleaning up**: Run `bash teardown.sh` after validating the challenge to remove deployed resources (add `--keep-state` if you need the manifest).
 
 ## 🏆 Success Criteria
 
