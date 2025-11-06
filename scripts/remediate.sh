@@ -230,12 +230,12 @@ verify_kms_policy() {
     warn "Unable to read KMS key policy for verification."
     return 1
   fi
-  if printf '%s' "$policy_json" | python3 - "$expected_lab_principal" "$expected_active_principal" <<'PY'
+  if DEBUG="$DEBUG" POLICY_JSON="$policy_json" python3 - "$expected_lab_principal" "$expected_active_principal" <<'PY'
 import json
 import os
 import sys
 
-raw = sys.stdin.read().strip()
+raw = os.environ.get("POLICY_JSON", "").strip()
 if not raw:
     sys.exit(1)
 try:
