@@ -73,6 +73,7 @@ Restore a private ingestion pipeline that accepts JSON telemetry, writes to Dyna
 - EventBridge schedule triggers ~18 times per 3-hour session, staying within free-tier limits.
 - DynamoDB on-demand accrues negligible charges when idle.
 - Run `bash scripts/teardown.sh` (pass `--keep-state` when evidence is required) to remove lab resources using the recorded state manifest.
+- If the manifest is missing but resources remain, rebuild it with `bash scripts/rebuild-state.sh` before running remediation or evaluation workflows.
 
 ### Troubleshooting Shortlist
 - Keep the state manifest nearby for resource IDs (VPC, endpoints, keys).

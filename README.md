@@ -132,6 +132,8 @@ After installation you will see ten failing controls. Each must be remediated in
    - When all ten checks read `ACCEPTED`, the evaluator prints `FLAG{...}`. Capture the flag and document the remediation steps you used.
 8. **Clean up when finished**
    - Run `bash teardown.sh` (add `--keep-state` if you want to archive the state file) to remove the lab resources once your session is complete.
+9. **State accidentally removed?**
+   - If `state/serverless-lab-state.json` is missing but the AWS resources are still present, run `bash rebuild-state.sh` to regenerate it before invoking `bash remediate.sh` or `bash eval.sh`.
 
 ### For Instructors (Challenge Administrators)
 
@@ -152,6 +154,7 @@ After installation you will see ten failing controls. Each must be remediated in
    - Encourage competitors to keep plan files, remediation notes, and evaluation logs under `state/` (e.g., `state/artifacts/`) for consistent evidence capture.
 4. **Cleanup guidance**
    - When the cohort wraps, run `bash teardown.sh` to remove deployed resources. Use `bash teardown.sh --keep-state` if you need to retain the manifest for grading or evidence.
+   - If a learner deletes the state manifest mid-session, regenerate it with `bash rebuild-state.sh` prior to providing remediation assistance.
 
 ## 🧭 Environment Variables
 - `STATE_FILE` – Path for deployment metadata (default `state/serverless-lab-state.json`).
@@ -184,6 +187,7 @@ These may be set prior to running `init.sh` and are read by `eval.sh`.
 | `scripts/remediate.sh` | Instructor reference solution (do not share with competitors) | Requires AWS CLI v2+; not executed automatically |
 | `scripts/report.sh` | Augments evaluation with result logging for cohort tracking | Requires AWS CLI v2+ and writable `state/` |
 | `scripts/teardown.sh` | Destroys lab resources recorded in the state manifest | Accepts `--keep-state` to retain the manifest after cleanup |
+| `scripts/rebuild-state.sh` | Reconstructs `state/serverless-lab-state.json` when resources exist but the manifest is missing | Run from `scripts/` with AWS CLI v2 credentials |
 
 ## 🌐 Recommended Environment Setup (AWS CloudShell)
 
