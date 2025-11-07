@@ -703,9 +703,15 @@ main() {
   check_aws_cli_version
   info "Loading deployment state from $STATE_FILE"
 
+  # Robust state loading: capture and validate JSON → key=value pairs
+  local _state_kvs
+  if ! _state_kvs="$(STATE_FILE="$STATE_FILE" load_state 2>/dev/null)"; then
+    fail "State manifest is unreadable or invalid JSON at $STATE_FILE. Run init.sh or rebuild-state.sh."
+    exit 1
+  fi
   while IFS='=' read -r key value; do
     export "$key"="$value"
-  done < <(STATE_FILE="$STATE_FILE" load_state)
+  done <<< "$_state_kvs"
 
   # Guard against missing or malformed state to avoid silent exits
   AccountId="${AccountId:-}"
