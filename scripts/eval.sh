@@ -26,6 +26,19 @@ fail() {
   (( EVAL_VERBOSE )) && printf '[eval][fail] %s\n' "$1"
 }
 
+usage() {
+  cat <<'USAGE'
+Usage: bash eval.sh [--verbose|-v] [--help|-h]
+
+Runs the lab evaluation and prints a generic tabular scorecard with Task 1..N
+and ACCEPTED/NOT ACCEPTED statuses. No check details are revealed.
+
+Options:
+  -v, --verbose  Instructor mode. Adds log lines and per-task numeric status.
+  -h, --help     Show this help and exit.
+USAGE
+}
+
 require_state() {
   if [[ ! -f "$STATE_FILE" ]]; then
     info "State file not found at $STATE_FILE. Checking backup..."
@@ -479,6 +492,24 @@ print_scorecard() {
 }
 
 main() {
+  # Parse flags
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -v|--verbose)
+        EVAL_VERBOSE=1
+        shift
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        # Ignore unknowns to stay forwards-compatible
+        shift
+        ;;
+    esac
+  done
+
   require_state
   check_aws_cli_version
   info "Loading deployment state from $STATE_FILE"

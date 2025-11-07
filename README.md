@@ -115,7 +115,8 @@ After installation you will see ten failing controls. Each must be remediated in
 
 4. **Run the initial evaluation**
    ```bash
-   bash eval.sh
+   bash eval.sh            # Learner mode (terse)
+   bash eval.sh --verbose  # Instructor mode (adds logs; still generic tasks)
    ```
    The evaluator shows a tabular scorecard with generic tasks and opaque statuses, e.g.:
    
@@ -128,7 +129,7 @@ After installation you will see ten failing controls. Each must be remediated in
    +----+-----------+---------------+
    Accepted: N/10
    
-   It does not reveal check details. Instructors may set `EVAL_VERBOSE=1` to add per-task log lines, but labels remain generic.
+   It does not reveal check details. Instructors may pass `--verbose` (or set `EVAL_VERBOSE=1`) to add per-task log lines; labels remain generic.
 
 5. **Capture plans and artifacts**
    - Store CLI transcripts, `eval` output, and remediation notes under `../state/` so they remain outside version control.
