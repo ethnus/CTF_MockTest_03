@@ -98,12 +98,16 @@ PY
 
 check_kms_policy() {
   local expected_principal="arn:aws:iam::${AccountId}:role/${LabRoleName}"
+  local expected_active=""
+  if [[ -n "${LAB_ROLE_NAME:-}" ]]; then
+    expected_active="arn:aws:iam::${AccountId}:role/${LAB_ROLE_NAME}"
+  fi
   local policy_json
   if ! policy_json="$(aws kms get-key-policy --key-id "$KmsKeyId" --policy-name default --region "$Region")"; then
     fail "Unable to read KMS key policy."
     return 1
   fi
-  if printf '%s' "$policy_json" | python3 - "$expected_principal" <<'PY'
+  if printf '%s' "$policy_json" | python3 - "$expected_principal" "$expected_active" <<'PY'
 import json
 import sys
 
@@ -122,7 +126,7 @@ if isinstance(policy_data, str):
 else:
     policy = policy_data
 
-principal = sys.argv[1]
+expected = [p for p in sys.argv[1:] if p]
 
 
 def contains_principal(statement, principal_arn):
@@ -130,9 +134,7 @@ def contains_principal(statement, principal_arn):
     if not principal_value:
         return False
     if isinstance(principal_value, str):
-        if principal_value == "*" or principal_value == principal_arn:
-            return True
-        return False
+        return principal_value == principal_arn or principal_value == "*"
     if isinstance(principal_value, dict):
         aws = principal_value.get("AWS")
         if isinstance(aws, str):
@@ -163,10 +165,15 @@ def has_encrypt_action(statement):
         for action in normalized
     )
 
+def any_principal(stmt):
+    for p in expected:
+        if contains_principal(stmt, p):
+            return True
+    return False
 
 found = any(
     stmt.get("Effect") == "Allow"
-    and contains_principal(stmt, principal)
+    and any_principal(stmt)
     and has_encrypt_action(stmt)
     for stmt in policy.get("Statement", [])
 )
@@ -477,7 +484,7 @@ print_scorecard() {
   printf '| %-2s | %-9s | %-13s |\n' '#' 'Task' 'Status'
   printf '+----+-----------+---------------+\n'
   for entry in "${CONTROL_RESULTS[@]}"; do
-    IFS='|' read -r id _ status <<<"$entry"
+    IFS='|' read -r id _ status <<<"$entry" || true
     (( total++ ))
     if [[ "$status" == "ACCEPTED" ]]; then
       shown="ACCEPTED"
