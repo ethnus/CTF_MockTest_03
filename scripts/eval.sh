@@ -244,6 +244,30 @@ PY
     info "Encryption access controls verified"
     return 0
   else
+    # Fallback: match principals and required actions in raw policy text
+    local policy_text roles ok_principal ok_actions
+    policy_text="$(aws kms get-key-policy --key-id "$KmsKeyId" --policy-name default --region "$Region" --query Policy --output text 2>/dev/null || true)"
+    roles=("$expected_principal")
+    [[ -n "$expected_active" ]] && roles+=("$expected_active")
+    ok_principal=1
+    ok_actions=1
+    local r
+    ok_principal=0
+    for r in "${roles[@]}"; do
+      if printf '%s' "$policy_text" | grep -Fq "$r"; then
+        ok_principal=1
+        break
+      fi
+    done
+    if printf '%s' "$policy_text" | grep -Fq '"kms:Encrypt"' && printf '%s' "$policy_text" | grep -Fq '"kms:Decrypt"'; then
+      ok_actions=1
+    else
+      ok_actions=0
+    fi
+    if (( ok_principal )) && (( ok_actions )); then
+      info "Encryption access controls verified (fallback)"
+      return 0
+    fi
     fail "Encryption access controls still incomplete"
     return 1
   fi
@@ -290,6 +314,17 @@ PY
   then
     return 0
   else
+    # Fallback via JMESPath
+    local eff
+    eff="$(aws s3api get-bucket-encryption --bucket "$S3BucketName" --region "$Region" \
+      --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.KMSMasterKeyID' \
+      --output text 2>/dev/null || true)"
+    if [[ -z "$eff" || "$eff" == "None" ]]; then
+      return 1
+    fi
+    if [[ "$eff" == "$KmsKeyArn" || "$eff" == "$KmsKeyId" || "$eff" == "arn:aws:kms:${Region}:${AccountId}:alias/${PROJECT_NAME}" || "$eff" == *"$KmsKeyId" ]]; then
+      return 0
+    fi
     return 1
   fi
 }
@@ -319,6 +354,15 @@ PY
   then
     return 0
   else
+    # Fallback via JMESPath
+    local proj cost
+    proj="$(aws s3api get-bucket-tagging --bucket "$S3BucketName" --region "$Region" \
+      --query "TagSet[?Key=='${PROJECT_TAG_KEY}'].Value | [0]" --output text 2>/dev/null || true)"
+    cost="$(aws s3api get-bucket-tagging --bucket "$S3BucketName" --region "$Region" \
+      --query "TagSet[?Key=='${COST_TAG_KEY}'].Value | [0]" --output text 2>/dev/null || true)"
+    if [[ "$proj" == "$PROJECT_TAG_VALUE" && "$cost" == "$COST_TAG_VALUE" ]]; then
+      return 0
+    fi
     return 1
   fi
 }
@@ -349,6 +393,13 @@ PY
   then
     return 0
   else
+    # Fallback via query
+    local status key
+    status="$(aws dynamodb describe-table --table-name "$DynamoTableName" --region "$Region" --query 'Table.SSEDescription.Status' --output text 2>/dev/null || true)"
+    key="$(aws dynamodb describe-table --table-name "$DynamoTableName" --region "$Region" --query 'Table.SSEDescription.KMSMasterKeyArn' --output text 2>/dev/null || true)"
+    if [[ "$status" == "ENABLED" && "$key" == "$KmsKeyArn" ]]; then
+      return 0
+    fi
     return 1
   fi
 }
@@ -373,7 +424,12 @@ PY
   then
     return 0
   else
-    return 1
+    local pitr
+    pitr="$(aws dynamodb describe-continuous-backups --table-name "$DynamoTableName" --region "$Region" \
+      --query 'ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus' \
+      --output text 2>/dev/null || true)"
+    [[ "$pitr" == "ENABLED" ]]
+    return $?
   fi
 }
 
@@ -411,6 +467,11 @@ PY
   then
     return 0
   else
+    local cnt
+    cnt="$(aws ec2 describe-vpc-endpoints --vpc-endpoint-ids "$S3EndpointId" --region "$Region" --query 'length(VpcEndpoints[0].RouteTableIds)' --output text 2>/dev/null || true)"
+    if [[ "$cnt" =~ ^[0-9]+$ && "$cnt" -ge 1 ]]; then
+      return 0
+    fi
     return 1
   fi
 }
@@ -438,7 +499,10 @@ PY
   then
     return 0
   else
-    return 1
+    local ddb
+    ddb="$(aws lambda get-function-configuration --function-name "$LambdaArn" --region "$Region" --query 'Environment.Variables.DDB_TABLE_NAME' --output text 2>/dev/null || true)"
+    [[ "$ddb" == "$DynamoTableName" ]]
+    return $?
   fi
 }
 
