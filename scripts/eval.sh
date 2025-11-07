@@ -580,6 +580,12 @@ PY
   then
     return 0
   else
+    # Shell-level fallback: simple substring match on the raw policy text
+    local policy_text
+    policy_text="$(aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query policy --output text 2>/dev/null || true)"
+    if printf '%s' "$policy_text" | grep -Fq "$ExecuteApiEndpointId"; then
+      return 0
+    fi
     return 1
   fi
 }
