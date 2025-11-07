@@ -25,7 +25,8 @@ info() {
 }
 
 fail() {
-  (( EVAL_VERBOSE )) && printf '[eval][fail] %s\n' "$1"
+  # Always show failures so learners see actionable messages
+  printf '[eval][fail] %s\n' "$1"
 }
 
 # Diagnostic helpers (only active when --verbose)
@@ -653,8 +654,10 @@ print_scorecard() {
   printf '+----+----------------+--------------------+\n'
   if (( use_color )); then
     printf "${BOLD}Accepted:${RESET} %d/%d\n" "$accepted" "$total"
+    printf "${BOLD}Score:${RESET} %d/%d tasks accepted\n" "$accepted" "$total"
   else
     printf 'Accepted: %d/%d\n' "$accepted" "$total"
+    printf 'Score: %d/%d tasks accepted\n' "$accepted" "$total"
   fi
 }
 
@@ -733,7 +736,7 @@ PY
     printf 'FLAG{%s}\n' "$flag"
     exit 0
   else
-    fail "Remediation incomplete. Continue investigating."
+    fail "Remediation incomplete. Use --verbose for diagnostics."
     exit 2
   fi
 }
