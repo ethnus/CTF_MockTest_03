@@ -696,6 +696,18 @@ main() {
     export "$key"="$value"
   done < <(STATE_FILE="$STATE_FILE" load_state)
 
+  # Guard against missing or malformed state to avoid silent exits
+  AccountId="${AccountId:-}"
+  Region="${Region:-}"
+  ApiId="${ApiId:-}"
+  KmsKeyId="${KmsKeyId:-}"
+  S3BucketName="${S3BucketName:-}"
+  DynamoTableName="${DynamoTableName:-}"
+  if [[ -z "$AccountId" || -z "$Region" || -z "$ApiId" || -z "$KmsKeyId" || -z "$S3BucketName" || -z "$DynamoTableName" ]]; then
+    fail "State manifest is missing required fields. Run init.sh or rebuild-state.sh."
+    exit 1
+  fi
+
   info "Evaluating remediation status for account $AccountId in $Region"
 
   # Prefer the active assumed role if provided via LAB_ROLE_NAME for KMS checks.
