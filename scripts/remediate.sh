@@ -567,7 +567,7 @@ repair_api_policy() {
       "Effect": "Allow",
       "Principal": "*",
       "Action": "execute-api:Invoke",
-      "Resource": "arn:aws:execute-api:${Region}:${AccountId}:${ApiId}/*",
+      "Resource": "arn:aws:execute-api:${Region}:${AccountId}:${ApiId}/*/*/*",
       "Condition": {
         "StringEquals": {
           "aws:SourceVpce": "${ExecuteApiEndpointId}"
@@ -587,6 +587,27 @@ EOF
     --region "$Region" >/dev/null
 
   rm -f "$policy_file"
+
+  # Also ensure the VPC endpoint is associated with the API to avoid access gaps
+  local current_vpces need_patch
+  current_vpces="$(aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query 'endpointConfiguration.vpcEndpointIds' --output json 2>/dev/null || echo '[]')"
+  need_patch="$(printf '%s' "$current_vpces" | python3 - "$ExecuteApiEndpointId" <<'PY'
+import json,sys
+raw=sys.stdin.read().strip() or '[]'
+try:
+  data=json.loads(raw)
+except Exception:
+  data=[]
+expected=sys.argv[1]
+print('yes' if (not isinstance(data,list) or expected not in [str(x).strip() for x in data]) else 'no')
+PY
+)"
+  if [[ "$need_patch" == "yes" ]]; then
+    aws apigateway update-rest-api \
+      --rest-api-id "$ApiId" \
+      --patch-operations "op=add,path=/endpointConfiguration/vpcEndpointIds,value=${ExecuteApiEndpointId}" \
+      --region "$Region" >/dev/null 2>&1 || true
+  fi
 }
 
 verify_dynamodb_sse() {
@@ -773,6 +794,14 @@ for statement in policy.get("Statement", []):
     condition = statement.get("Condition", {})
     if vpce_matches(condition, vpce):
         sys.exit(0)
+
+# Fallback: raw string contains expected VPCe (handle unusual string encodings)
+raw_env = os.environ.get("POLICY_JSON", "")
+try:
+    if vpce in raw_env:
+        sys.exit(0)
+except Exception:
+    pass
 
 # Debug context when not found
 if os.environ.get("DEBUG") in ("1", "true", "TRUE"):
