@@ -115,10 +115,12 @@ After installation you will see ten failing controls. Each must be remediated in
 
 4. **Run the initial evaluation**
    ```bash
-   bash eval.sh            # Learner mode (terse)
-   bash eval.sh --verbose  # Instructor mode (adds logs; still generic tasks)
+   # Learner mode (terse, colorized table)
+   bash eval.sh
+   # Instructor mode (adds diagnostics; still generic tasks)
+   bash eval.sh --verbose
    ```
-   The evaluator shows a tabular scorecard with generic tasks and opaque statuses, e.g.:
+   The evaluator shows a colorized tabular scorecard with generic tasks and opaque statuses, e.g.:
    
    +----+-----------+---------------+
    | #  | Task      | Status        |
@@ -172,7 +174,7 @@ After installation you will see ten failing controls. Each must be remediated in
    - Share guardrails or hints aligned with the ten controls.
    - Demonstrate fixes live by applying remediations and re-running `bash eval.sh` for proof.
   - Use `bash remediate.sh` as a reference solution (do not distribute to competitors).
-  - To archive results with the same table, run: `bash report.sh --verbose`.
+  - To reset a learner environment back to broken state without redeploying, run: `bash init.sh --reinit` (uses the state manifest).
    - Encourage competitors to keep plan files, remediation notes, and evaluation logs under `state/` (e.g., `state/artifacts/`) for consistent evidence capture.
 4. **Cleanup guidance**
    - When the cohort wraps, run `bash teardown.sh` to remove deployed resources. Use `bash teardown.sh --keep-state` if you need to retain the manifest for grading or evidence.
@@ -185,7 +187,8 @@ After installation you will see ten failing controls. Each must be remediated in
 - `VERBOSE` – Controls high-level logs in `init.sh` and `remediate.sh` (default `1`).
 - `DEBUG` – Command-level tracing in `remediate.sh` (default `1`; pass `--debug` explicitly or set `DEBUG=0` to reduce noise).
 - `DEBUG_MAX_BYTES` – Max bytes of stdout/stderr echoed per AWS CLI call in debug mode (default `4096`).
-- `EVAL_VERBOSE` – Set to `1` for a more chatty evaluator that still hides check descriptions; default `0` for learners.
+- `EVAL_VERBOSE` – Set to `1` for a more chatty evaluator; default `0` for learners.
+- `FORCE_COLOR` / `NO_COLOR` – Force-enable or disable ANSI colors in `eval.sh` output.
 
 These may be set prior to running `init.sh` and are read by `eval.sh`.
 
@@ -211,7 +214,6 @@ These may be set prior to running `init.sh` and are read by `eval.sh`.
 | `scripts/init.sh` | Deploys the lab infrastructure with faults | Stops if state exists to avoid clobbering |
 | `scripts/eval.sh` | Runs remediation checks and prints the flag on success | Requires AWS CLI v2+, reads `STATE_FILE` |
 | `scripts/remediate.sh` | Instructor reference solution (do not share with competitors) | Idempotent; includes verification with retries to account for AWS propagation |
-| `scripts/report.sh` | Augments evaluation with result logging for cohort tracking | Requires AWS CLI v2+ and writable `state/` |
 | `scripts/teardown.sh` | Destroys lab resources recorded in the state manifest | Accepts `--keep-state` to retain the manifest after cleanup |
 | `scripts/rebuild-state.sh` | Reconstructs `state/serverless-lab-state.json` when resources exist but the manifest is missing | Run from `scripts/` with AWS CLI v2 credentials |
 

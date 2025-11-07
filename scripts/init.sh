@@ -3,6 +3,7 @@
 set -euo pipefail
 export AWS_PAGER=""
 VERBOSE=${VERBOSE:-1}
+REINIT=0
 
 # Bootstrap script for the Serverless Resiliency Lab.
 # Deploys resources with intentional misconfigurations for troubleshooting practice.
@@ -109,7 +110,109 @@ preflight_conflicts() {
   fi
 }
 
+apply_faults_existing() {
+  info "Re-introducing intentional faults on existing resources"
+
+  # Load state
+  if [[ ! -f "$STATE_FILE" ]]; then
+    warn "State file not found at $STATE_FILE. Attempting backup recovery."
+    local region acct bak
+    region="$REGION"
+    acct="$(aws sts get-caller-identity --query 'Account' --output text 2>/dev/null || true)"
+    if [[ -n "$region" && -n "$acct" ]]; then
+      bak="${HOME}/.lab-state/serverless-resiliency-lab/${acct}-${region}/serverless-lab-state.json"
+      if [[ -f "$bak" ]]; then
+        mkdir -p "$(dirname "$STATE_FILE")"
+        cp "$bak" "$STATE_FILE"
+        info "Recovered state from $bak"
+      else
+        warn "No state to reinit from. Aborting."
+        exit 1
+      fi
+    fi
+  fi
+
+  # Export state vars into environment for convenience
+  while IFS='=' read -r key value; do
+    export "$key"="$value"
+  done < <(python3 - <<'PY'
+import json, os
+path = os.environ.get('STATE_FILE')
+with open(path,'r',encoding='utf-8') as fh:
+  data=json.load(fh)
+for k,v in data.items():
+  print(f"{k}={v}")
+PY
+)
+
+  # 1) KMS policy: restrict to root only
+  info "Resetting KMS key policy to root-only"
+  aws kms put-key-policy \
+    --key-id "$KmsKeyId" \
+    --policy-name default \
+    --policy "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"AllowRootAccountAdministration\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::${AccountId}:root\"},\"Action\":\"kms:*\",\"Resource\":\"*\"}]}" \
+    --region "$Region" >/dev/null
+
+  # 2) S3: remove default encryption and tags
+  info "Removing S3 bucket encryption and tags"
+  aws s3api delete-bucket-encryption --bucket "$S3BucketName" --region "$Region" >/dev/null 2>&1 || true
+  aws s3api delete-bucket-tagging --bucket "$S3BucketName" --region "$Region" >/dev/null 2>&1 || true
+
+  # 3) DynamoDB SSE revert to default (no CMK) and disable PITR
+  info "Reverting DynamoDB SSE to default and disabling PITR"
+  aws dynamodb update-table --table-name "$DynamoTableName" --sse-specification Enabled=true --region "$Region" >/dev/null 2>&1 || true
+  aws dynamodb update-continuous-backups --table-name "$DynamoTableName" --point-in-time-recovery-specification PointInTimeRecoveryEnabled=false --region "$Region" >/dev/null 2>&1 || true
+
+  # 4) Remove DDB gateway endpoint if present
+  info "Removing DynamoDB gateway endpoint"
+  ddb_ep_id="$(aws ec2 describe-vpc-endpoints --region "$Region" --filters "Name=vpc-id,Values=$VpcId" "Name=service-name,Values=com.amazonaws.${Region}.dynamodb" --query 'VpcEndpoints[0].VpcEndpointId' --output text 2>/dev/null || true)"
+  if [[ -n "$ddb_ep_id" && "$ddb_ep_id" != "None" ]]; then
+    aws ec2 delete-vpc-endpoints --vpc-endpoint-ids "$ddb_ep_id" --region "$Region" >/dev/null 2>&1 || true
+  fi
+
+  # 5) Detach S3 gateway endpoint from route table
+  info "Detaching route table from S3 gateway endpoint"
+  aws ec2 modify-vpc-endpoint --vpc-endpoint-id "$S3EndpointId" --remove-route-table-ids "$RouteTableId" --region "$Region" >/dev/null 2>&1 || true
+
+  # 6) Break Lambda environment variable for DDB table
+  info "Breaking Lambda environment variable for DDB table"
+  aws lambda update-function-configuration --function-name "$LambdaArn" --environment "Variables={DDB_TABLE_NAME=${DynamoTableName}y,S3_BUCKET_NAME=$S3BucketName,LOG_LEVEL=INFO}" --region "$Region" >/dev/null
+
+  # 7) Disable EventBridge rule
+  info "Disabling EventBridge heartbeat rule"
+  aws events disable-rule --name "$EventRuleName" --region "$Region" >/dev/null 2>&1 || true
+
+  # 8) API policy with incorrect VPCe
+  info "Setting API policy to incorrect VPC endpoint"
+  bad_policy="{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":\"execute-api:Invoke\",\"Resource\":\"arn:aws:execute-api:${Region}:${AccountId}:${ApiId}/*/*/*\",\"Condition\":{\"StringEquals\":{\"aws:SourceVpce\":\"vpce-00000000000000000\"}}}]}"
+  aws apigateway update-rest-api --rest-api-id "$ApiId" --patch-operations "op=replace,path=/policy,value=$bad_policy" --region "$Region" >/dev/null
+
+  info "Faults re-applied. Re-run eval.sh to confirm tasks return to NOT ACCEPTED."
+}
+
 main() {
+  # Parse flags (e.g., --reinit)
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --reinit)
+        REINIT=1
+        shift
+        ;;
+      -h|--help)
+        cat <<'USAGE'
+Usage: bash init.sh [--reinit]
+
+Default: Create lab resources with intentional faults (if not present).
+--reinit: Re-introduce faults on existing resources using the state manifest.
+USAGE
+        exit 0
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
   for cmd in aws zip; do
     require_command "$cmd"
   done
@@ -118,8 +221,13 @@ main() {
 
   mkdir -p "$(dirname "$STATE_FILE")"
 
+  if (( REINIT )); then
+    apply_faults_existing
+    exit 0
+  fi
+
   if [[ -f "$STATE_FILE" ]]; then
-    warn "Existing state file detected at $STATE_FILE. Remove it to redeploy from scratch."
+    warn "Existing state file detected at $STATE_FILE. Remove it or use --reinit to reset faults."
     exit 1
   fi
 

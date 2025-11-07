@@ -3,6 +3,8 @@
 set -euo pipefail
 export AWS_PAGER=""
 EVAL_VERBOSE=${EVAL_VERBOSE:-0}
+FORCE_COLOR=${FORCE_COLOR:-}
+NO_COLOR=${NO_COLOR:-}
 
 # Evaluation script for the Serverless Resiliency Lab.
 # Validates learner fixes and emits a deterministic flag on complete success.
@@ -87,13 +89,15 @@ diag_failure() {
 
 usage() {
   cat <<'USAGE'
-Usage: bash eval.sh [--verbose|-v] [--help|-h]
+Usage: bash eval.sh [--verbose|-v] [--color|--no-color] [--help|-h]
 
 Runs the lab evaluation and prints a generic tabular scorecard with Task 1..N
 and ACCEPTED/NOT ACCEPTED statuses. No check details are revealed.
 
 Options:
   -v, --verbose  Instructor mode. Adds log lines and per-task numeric status.
+      --color    Force ANSI colors on
+      --no-color Disable ANSI colors
   -h, --help     Show this help and exit.
 USAGE
 }
@@ -608,11 +612,25 @@ run_check() {
 
 print_scorecard() {
   local accepted=0 total=0 entry id status shown
+  local use_color=0
+  local RED="" GREEN="" BLUE="" BOLD="" RESET=""
+  if [[ -n "$FORCE_COLOR" ]]; then
+    use_color=1
+  elif [[ -z "$NO_COLOR" && -t 1 ]]; then
+    use_color=1
+  fi
+  if (( use_color )); then
+    RED='\033[31m'; GREEN='\033[32m'; BLUE='\033[34m'; BOLD='\033[1m'; RESET='\033[0m'
+  fi
   # Header
   printf '\n'
-  printf '+----+-----------+---------------+\n'
-  printf '| %-2s | %-9s | %-13s |\n' '#' 'Task' 'Status'
-  printf '+----+-----------+---------------+\n'
+  printf '+----+----------------+--------------------+\n'
+  if (( use_color )); then
+    printf "| ${BOLD}%-2s${RESET} | ${BOLD}%-14s${RESET} | ${BOLD}%-18s${RESET} |\n" '#' 'Task' 'Status'
+  else
+    printf '| %-2s | %-14s | %-18s |\n' '#' 'Task' 'Status'
+  fi
+  printf '+----+----------------+--------------------+\n'
   for entry in "${CONTROL_RESULTS[@]}"; do
     IFS='|' read -r id _ status <<<"$entry" || true
     (( total++ ))
@@ -622,10 +640,22 @@ print_scorecard() {
     else
       shown="NOT ACCEPTED"
     fi
-    printf '| %-2s | %-9s | %-13s |\n' "$id" "Task $id" "$shown"
+    if (( use_color )); then
+      if [[ "$shown" == "ACCEPTED" ]]; then
+        printf "| %-2s | %-14s | ${GREEN}%-18s${RESET} |\n" "$id" "Task $id" "$shown"
+      else
+        printf "| %-2s | %-14s | ${RED}%-18s${RESET} |\n" "$id" "Task $id" "$shown"
+      fi
+    else
+      printf '| %-2s | %-14s | %-18s |\n' "$id" "Task $id" "$shown"
+    fi
   done
-  printf '+----+-----------+---------------+\n'
-  printf 'Accepted: %d/%d\n' "$accepted" "$total"
+  printf '+----+----------------+--------------------+\n'
+  if (( use_color )); then
+    printf "${BOLD}Accepted:${RESET} %d/%d\n" "$accepted" "$total"
+  else
+    printf 'Accepted: %d/%d\n' "$accepted" "$total"
+  fi
 }
 
 main() {
@@ -634,6 +664,14 @@ main() {
     case "$1" in
       -v|--verbose)
         EVAL_VERBOSE=1
+        shift
+        ;;
+      --color)
+        FORCE_COLOR=1
+        shift
+        ;;
+      --no-color)
+        NO_COLOR=1
         shift
         ;;
       -h|--help)
