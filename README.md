@@ -117,7 +117,7 @@ After installation you will see ten failing controls. Each must be remediated in
    ```bash
    bash eval.sh
    ```
-   You should see ten `INCOMPLETE` checks. Treat each as a separate remediation task.
+   The evaluator is intentionally terse and only prints a summary (e.g., `Accepted: 0/10`). It does not reveal the specific checks to learners. Instructors may set `EVAL_VERBOSE=1` to also print per-control numeric statuses.
 
 5. **Capture plans and artifacts**
    - Store CLI transcripts, `eval` output, and remediation notes under `../state/` so they remain outside version control.
@@ -169,8 +169,10 @@ After installation you will see ten failing controls. Each must be remediated in
 - `STATE_FILE` – Path for deployment metadata (default `state/serverless-lab-state.json`).
 - `AWS_REGION` or `AWS_DEFAULT_REGION` – Target region (`us-east-1` or `us-west-2` allowed).
 - `LAB_ROLE_NAME` – IAM role assumed by the evaluation checks (default `LabRole`).
- - `DEBUG` – Set to `1` to enable verbose tracing in `remediate.sh` (or pass `--debug`).
- - `DEBUG_MAX_BYTES` – Max bytes of stdout/stderr echoed per AWS CLI call in debug mode (default `4096`).
+- `VERBOSE` – Controls high-level logs in `init.sh` and `remediate.sh` (default `1`).
+- `DEBUG` – Command-level tracing in `remediate.sh` (default `1`; pass `--debug` explicitly or set `DEBUG=0` to reduce noise).
+- `DEBUG_MAX_BYTES` – Max bytes of stdout/stderr echoed per AWS CLI call in debug mode (default `4096`).
+- `EVAL_VERBOSE` – Set to `1` for a more chatty evaluator that still hides check descriptions; default `0` for learners.
 
 These may be set prior to running `init.sh` and are read by `eval.sh`.
 

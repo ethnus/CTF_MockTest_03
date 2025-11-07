@@ -2,6 +2,7 @@
 
 set -euo pipefail
 export AWS_PAGER=""
+EVAL_VERBOSE=${EVAL_VERBOSE:-0}
 
 # Evaluation script for the Serverless Resiliency Lab.
 # Validates learner fixes and emits a deterministic flag on complete success.
@@ -18,11 +19,11 @@ declare -a CONTROL_RESULTS=()
 failures=0
 
 info() {
-  printf '[eval] %s\n' "$1"
+  (( EVAL_VERBOSE )) && printf '[eval] %s\n' "$1"
 }
 
 fail() {
-  printf '[eval][fail] %s\n' "$1"
+  (( EVAL_VERBOSE )) && printf '[eval][fail] %s\n' "$1"
 }
 
 require_state() {
@@ -442,32 +443,35 @@ PY
 
 run_check() {
   local id="$1"
-  local label="$2"
+  local _unused_label="$2"
   local fn="$3"
 
   if "$fn"; then
-    CONTROL_RESULTS+=("$id|$label|ACCEPTED")
-    info "[$id] $label -> ACCEPTED"
+    CONTROL_RESULTS+=("$id||ACCEPTED")
+    (( EVAL_VERBOSE )) && printf '[eval] #%s: ACCEPTED\n' "$id"
   else
-    CONTROL_RESULTS+=("$id|$label|INCOMPLETE")
-    info "[$id] $label -> INCOMPLETE"
+    CONTROL_RESULTS+=("$id||INCOMPLETE")
+    (( EVAL_VERBOSE )) && printf '[eval] #%s: INCOMPLETE\n' "$id"
     ((failures+=1))
   fi
 }
 
 print_scorecard() {
-  printf '\n'
-  printf '+----------------------------------------------------------------------------+\n'
-  printf '| Control Scorecard                                                          |\n'
-  printf '+----+--------------------------------------------------------------+--------+\n'
-  printf '| %-2s | %-60s | %-6s |\n' '#' 'Control' 'Status'
-  printf '+----+--------------------------------------------------------------+--------+\n'
-  local entry
+  local accepted=0 total=0 entry id status
   for entry in "${CONTROL_RESULTS[@]}"; do
-    IFS='|' read -r id label status <<<"$entry"
-    printf '| %-2s | %-60s | %-6s |\n' "$id" "$label" "$status"
+    IFS='|' read -r id _ status <<<"$entry"
+    (( total++ ))
+    [[ "$status" == "ACCEPTED" ]] && (( accepted++ ))
   done
-  printf '+----+--------------------------------------------------------------+--------+\n'
+  if (( EVAL_VERBOSE )); then
+    printf '[eval] Accepted: %d/%d\n' "$accepted" "$total"
+    for entry in "${CONTROL_RESULTS[@]}"; do
+      IFS='|' read -r id _ status <<<"$entry"
+      printf '[eval] #%s: %s\n' "$id" "$status"
+    done
+  else
+    printf 'Accepted: %d/%d\n' "$accepted" "$total"
+  fi
 }
 
 main() {
@@ -490,16 +494,16 @@ main() {
   CONTROL_RESULTS=()
   failures=0
 
-  run_check 1 "KMS policy grants LabRole encrypt/decrypt" check_kms_policy
-  run_check 2 "S3 bucket enforces default KMS encryption" check_s3_encryption
-  run_check 3 "S3 bucket has required governance tags" check_s3_tags
-  run_check 4 "DynamoDB table uses customer-managed KMS key" check_dynamodb_sse
-  run_check 5 "DynamoDB point-in-time recovery enabled" check_dynamodb_pitr
-  run_check 6 "DynamoDB Gateway endpoint attached to VPC" check_dynamodb_endpoint
-  run_check 7 "S3 Gateway endpoint associated with route table" check_s3_endpoint_routes
-  run_check 8 "Lambda environment configured with correct table name" check_lambda_env
-  run_check 9 "EventBridge heartbeat rule enabled" check_event_rule
-  run_check 10 "API Gateway policy targets correct VPC endpoint" check_api_policy
+  run_check 1 "" check_kms_policy
+  run_check 2 "" check_s3_encryption
+  run_check 3 "" check_s3_tags
+  run_check 4 "" check_dynamodb_sse
+  run_check 5 "" check_dynamodb_pitr
+  run_check 6 "" check_dynamodb_endpoint
+  run_check 7 "" check_s3_endpoint_routes
+  run_check 8 "" check_lambda_env
+  run_check 9 "" check_event_rule
+  run_check 10 "" check_api_policy
 
   print_scorecard
 
@@ -515,7 +519,7 @@ digest = hashlib.sha256(data.encode("utf-8")).hexdigest()
 print(digest[:32])
 PY
 )"
-    info "All high-level controls satisfied. Share the flag below:"
+    info "All controls satisfied."
     printf 'FLAG{%s}\n' "$flag"
     exit 0
   else

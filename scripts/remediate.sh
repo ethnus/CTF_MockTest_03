@@ -15,11 +15,12 @@ COST_TAG_VALUE="Training"
 PROJECT_NAME="serverless-resiliency-lab"
 
 declare -a VERIFICATION_RESULTS=()
-DEBUG=${DEBUG:-0}
+DEBUG=${DEBUG:-1}
+VERBOSE=${VERBOSE:-1}
 DEBUG_MAX_BYTES=${DEBUG_MAX_BYTES:-4096}
 
 info() {
-  printf '[remediate] %s\n' "$1"
+  (( VERBOSE )) && printf '[remediate] %s\n' "$1"
 }
 
 warn() {

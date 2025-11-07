@@ -2,6 +2,7 @@
 
 set -euo pipefail
 export AWS_PAGER=""
+VERBOSE=${VERBOSE:-1}
 
 # Bootstrap script for the Serverless Resiliency Lab.
 # Deploys resources with intentional misconfigurations for troubleshooting practice.
@@ -27,11 +28,15 @@ COST_TAG_KEY="CostCenter"
 COST_TAG_VALUE="Training"
 
 info() {
-  printf '[init] %s\n' "$1"
+  (( VERBOSE )) && printf '[init] %s\n' "$1"
 }
 
 warn() {
   printf '[init][warn] %s\n' "$1" >&2
+}
+
+log_kv() {
+  (( VERBOSE )) && printf '  - %s: %s\n' "$1" "$2"
 }
 
 require_command() {
@@ -145,6 +150,8 @@ main() {
     --output text)"
 
   kms_key_arn="$(aws kms describe-key --key-id "$kms_key_id" --region "$REGION" --query 'KeyMetadata.Arn' --output text)"
+  log_kv "KMS KeyId" "$kms_key_id"
+  log_kv "KMS KeyArn" "$kms_key_arn"
 
   info "Tagging KMS key"
   aws kms tag-resource \
@@ -185,6 +192,7 @@ main() {
   aws ec2 modify-vpc-attribute --vpc-id "$vpc_id" --enable-dns-hostnames --region "$REGION" >/dev/null
   aws ec2 modify-vpc-attribute --vpc-id "$vpc_id" --enable-dns-support --region "$REGION" >/dev/null
 
+  log_kv "VPC Id" "$vpc_id"
   subnet_id="$(aws ec2 create-subnet \
     --region "$REGION" \
     --vpc-id "$vpc_id" \
@@ -193,6 +201,7 @@ main() {
     --query 'Subnet.SubnetId' \
     --output text)"
 
+  log_kv "Subnet Id" "$subnet_id"
   route_table_id="$(aws ec2 create-route-table \
     --vpc-id "$vpc_id" \
     --region "$REGION" \
@@ -309,8 +318,10 @@ main() {
     --query 'id' \
     --output text)"
 
+  log_kv "API Id" "$api_id"
   api_root_id="$(aws apigateway get-resources --rest-api-id "$api_id" --region "$REGION" --query 'items[0].id' --output text)"
 
+  log_kv "API Root Resource Id" "$api_root_id"
   ingest_resource_id="$(aws apigateway create-resource \
     --rest-api-id "$api_id" \
     --parent-id "$api_root_id" \
@@ -383,6 +394,23 @@ EOF
   info "Bootstrap complete. Intentional faults deployed. State captured at $STATE_FILE"
   info "Backup saved to $backup_dir/serverless-lab-state.json"
   info "Next: run eval.sh to view failing checks."
+
+  if (( VERBOSE )); then
+    printf '[init] Resource summary:\n'
+    log_kv "Region" "$REGION"
+    log_kv "Account" "$ACCOUNT_ID"
+    log_kv "KMS KeyId" "$kms_key_id"
+    log_kv "S3 Bucket" "$bucket_name"
+    log_kv "DynamoDB Table" "$table_name"
+    log_kv "VPC Id" "$vpc_id"
+    log_kv "Subnet Id" "$subnet_id"
+    log_kv "Route Table Id" "$route_table_id"
+    log_kv "S3 GW Endpoint" "$s3_endpoint_id"
+    log_kv "Execute-API IF Endpoint" "$api_vpce_id"
+    log_kv "Lambda Arn" "$lambda_arn"
+    log_kv "API Id" "$api_id"
+    log_kv "Deployment Id" "$deployment_id"
+  fi
 }
 
 kms_key_policy() {
@@ -508,3 +536,12 @@ EOF
 }
 
 main "$@"
+  log_kv "S3 Bucket" "$bucket_name"
+  log_kv "DynamoDB Table" "$table_name"
+  log_kv "Route Table Id" "$route_table_id"
+  log_kv "Security Group Id" "$sg_id"
+  log_kv "S3 Gateway Endpoint Id" "$s3_endpoint_id"
+  log_kv "Execute-API Interface Endpoint Id" "$api_vpce_id"
+  log_kv "Lambda Arn" "$lambda_arn"
+  log_kv "Ingest Resource Id" "$ingest_resource_id"
+  log_kv "Deployment Id" "$deployment_id"
