@@ -26,6 +26,65 @@ fail() {
   (( EVAL_VERBOSE )) && printf '[eval][fail] %s\n' "$1"
 }
 
+# Diagnostic helpers (only active when --verbose)
+diag_note() {
+  (( EVAL_VERBOSE )) && printf '[eval][diag] %s\n' "$1"
+}
+
+diag_failure() {
+  (( EVAL_VERBOSE )) || return 0
+  local id="$1"
+  case "$id" in
+    1)
+      diag_note "KMS policy details (expected principals may include both state and active roles):"
+      diag_note " - Expected (state): arn:aws:iam::${AccountId}:role/${LabRoleName}"
+      if [[ -n "${LAB_ROLE_NAME:-}" ]]; then
+        diag_note " - Expected (active): arn:aws:iam::${AccountId}:role/${LAB_ROLE_NAME}"
+      fi
+      aws kms get-key-policy --key-id "$KmsKeyId" --policy-name default --region "$Region" --query Policy --output text 2>/dev/null || true
+      ;;
+    2)
+      diag_note "S3 default encryption configuration:"
+      aws s3api get-bucket-encryption --bucket "$S3BucketName" --region "$Region" 2>/dev/null || true
+      ;;
+    3)
+      diag_note "S3 bucket tags:"
+      aws s3api get-bucket-tagging --bucket "$S3BucketName" --region "$Region" 2>/dev/null || true
+      ;;
+    4)
+      diag_note "DynamoDB SSE description:"
+      aws dynamodb describe-table --table-name "$DynamoTableName" --region "$Region" --query 'Table.SSEDescription' 2>/dev/null || true
+      ;;
+    5)
+      diag_note "DynamoDB PITR status:"
+      aws dynamodb describe-continuous-backups --table-name "$DynamoTableName" --region "$Region" --query 'ContinuousBackupsDescription.PointInTimeRecoveryDescription' 2>/dev/null || true
+      ;;
+    6)
+      diag_note "DynamoDB gateway endpoint count in VPC:"
+      aws ec2 describe-vpc-endpoints --region "$Region" --filters "Name=vpc-id,Values=$VpcId" "Name=service-name,Values=com.amazonaws.${Region}.dynamodb" --query 'length(VpcEndpoints)' 2>/dev/null || true
+      ;;
+    7)
+      diag_note "S3 gateway endpoint route associations:"
+      aws ec2 describe-vpc-endpoints --vpc-endpoint-ids "$S3EndpointId" --region "$Region" --query 'VpcEndpoints[0].RouteTableIds' --output json 2>/dev/null || true
+      ;;
+    8)
+      diag_note "Lambda env vars (expected DDB_TABLE_NAME=$DynamoTableName):"
+      aws lambda get-function-configuration --function-name "$LambdaArn" --region "$Region" --query 'Environment.Variables' 2>/dev/null || true
+      ;;
+    9)
+      diag_note "EventBridge rule state (should be ENABLED):"
+      aws events describe-rule --name "$EventRuleName" --region "$Region" --query 'State' --output text 2>/dev/null || true
+      ;;
+    10)
+      diag_note "API policy and endpointConfiguration.vpcEndpointIds:"
+      aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query policy 2>/dev/null || true
+      aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query 'endpointConfiguration.vpcEndpointIds' 2>/dev/null || true
+      diag_note "Expected aws:SourceVpce: $ExecuteApiEndpointId"
+      ;;
+    *) ;;
+  esac
+}
+
 usage() {
   cat <<'USAGE'
 Usage: bash eval.sh [--verbose|-v] [--help|-h]
@@ -472,6 +531,7 @@ run_check() {
   else
     CONTROL_RESULTS+=("$id||INCOMPLETE")
     (( EVAL_VERBOSE )) && printf '[eval] #%s: INCOMPLETE\n' "$id"
+    diag_failure "$id"
     ((failures+=1))
   fi
 }
