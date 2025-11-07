@@ -184,8 +184,31 @@ PY
 
   # 8) API policy with incorrect VPCe
   info "Setting API policy to incorrect VPC endpoint"
-  bad_policy="{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":\"execute-api:Invoke\",\"Resource\":\"arn:aws:execute-api:${Region}:${AccountId}:${ApiId}/*/*/*\",\"Condition\":{\"StringEquals\":{\"aws:SourceVpce\":\"vpce-00000000000000000\"}}}]}"
-  aws apigateway update-rest-api --rest-api-id "$ApiId" --patch-operations "op=replace,path=/policy,value=$bad_policy" --region "$Region" >/dev/null
+  policy_tmp="$(mktemp)"
+  cat >"$policy_tmp" <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "execute-api:Invoke",
+      "Resource": "arn:aws:execute-api:${Region}:${AccountId}:${ApiId}/*/*/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:SourceVpce": "vpce-00000000000000000"
+        }
+      }
+    }
+  ]
+}
+EOF
+  policy_payload="$(tr -d '\n' <"$policy_tmp" | sed 's/\"/\\\"/g')"
+  aws apigateway update-rest-api \
+    --rest-api-id "$ApiId" \
+    --patch-operations "[{\"op\":\"replace\",\"path\":\"/policy\",\"value\":\"$policy_payload\"}]" \
+    --region "$Region" >/dev/null
+  rm -f "$policy_tmp"
 
   info "Faults re-applied. Re-run eval.sh to confirm tasks return to NOT ACCEPTED."
 }
