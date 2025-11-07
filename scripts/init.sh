@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+export AWS_PAGER=""
 
 # Bootstrap script for the Serverless Resiliency Lab.
 # Deploys resources with intentional misconfigurations for troubleshooting practice.

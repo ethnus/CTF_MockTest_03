@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+export AWS_PAGER=""
 
 # Evaluation script for the Serverless Resiliency Lab.
 # Validates learner fixes and emits a deterministic flag on complete success.

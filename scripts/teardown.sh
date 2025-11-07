@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+export AWS_PAGER=""
 
 # Teardown script for the Serverless Resiliency Lab.
 # Uses the state file emitted by init.sh to delete lab resources.

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+export AWS_PAGER=""
 
 # Regenerates state/serverless-lab-state.json by discovering lab resources in AWS.
 # Useful when init.sh succeeded previously but the state file was deleted or lost.
@@ -199,6 +200,13 @@ write_state() {
 }
 EOF
   info "State file rebuilt at $STATE_FILE"
+
+  # Also persist a backup copy like init.sh for resilience
+  local bak_dir
+  bak_dir="${HOME}/.lab-state/serverless-resiliency-lab/${ACCOUNT_ID}-${REGION}"
+  mkdir -p "$bak_dir"
+  cp "$STATE_FILE" "$bak_dir/serverless-lab-state.json"
+  info "Backup saved to $bak_dir/serverless-lab-state.json"
 }
 
 main() {

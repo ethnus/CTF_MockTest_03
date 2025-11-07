@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+export AWS_PAGER=""
 
 # Remediation script for the Serverless Resiliency Lab.
 # Corrects all intentional faults silently so instructors can restore the baseline.

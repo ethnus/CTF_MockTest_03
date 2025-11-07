@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+export AWS_PAGER=""
 
 STATE_FILE="${STATE_FILE:-state/serverless-lab-state.json}"
 RESULTS_DB="${RESULTS_DB:-state/results.db}"
@@ -24,7 +25,22 @@ fail() {
 
 require_state() {
   if [[ ! -f "$STATE_FILE" ]]; then
-    fail "State file not found at $STATE_FILE. Run init.sh first (or ensure STATE_FILE is set correctly)."
+    info "State file not found at $STATE_FILE. Checking backup..."
+    local acct region bak
+    region="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
+    acct="$(aws sts get-caller-identity --query 'Account' --output text 2>/dev/null || true)"
+    if [[ -n "$region" && -n "$acct" ]]; then
+      bak="${HOME}/.lab-state/serverless-resiliency-lab/${acct}-${region}/serverless-lab-state.json"
+      if [[ -f "$bak" ]]; then
+        mkdir -p "$(dirname "$STATE_FILE")"
+        cp "$bak" "$STATE_FILE"
+        info "Recovered state from $bak"
+      else
+        fail "State missing and no backup found. Run init.sh or rebuild-state.sh."
+      fi
+    else
+      fail "Region/account unknown and state missing. Set AWS_REGION or run rebuild-state.sh."
+    fi
   fi
 }
 
