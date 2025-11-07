@@ -103,7 +103,22 @@ aws() {
 
 require_state() {
   if [[ ! -f "$STATE_FILE" ]]; then
-    error "State file not found at $STATE_FILE. Run init.sh first."
+    warn "State file not found at $STATE_FILE. Attempting backup recovery."
+    local region acct bak
+    region="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
+    acct="$(aws sts get-caller-identity --query 'Account' --output text 2>/dev/null || true)"
+    if [[ -n "$region" && -n "$acct" ]]; then
+      bak="${HOME}/.lab-state/serverless-resiliency-lab/${acct}-${region}/serverless-lab-state.json"
+      if [[ -f "$bak" ]]; then
+        mkdir -p "$(dirname "$STATE_FILE")"
+        cp "$bak" "$STATE_FILE"
+        info "Recovered state from $bak"
+      else
+        error "State missing and no backup found. Run init.sh or rebuild-state.sh."
+      fi
+    else
+      error "Region/account unknown and state missing. Set AWS_REGION or run rebuild-state.sh."
+    fi
   fi
 }
 

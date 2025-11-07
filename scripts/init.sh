@@ -59,6 +59,50 @@ check_aws_cli_version() {
   info "Detected AWS CLI version $version"
 }
 
+# Compute a consistent backup location for the state file so sessions can recover easily
+state_backup_dir() {
+  local account_id region
+  account_id="$1"
+  region="$2"
+  printf '%s' "${HOME}/.lab-state/serverless-resiliency-lab/${account_id}-${region}"
+}
+
+preflight_conflicts() {
+  # Detect partially-created resources from a prior run without state
+  local account_id region bucket_name table_name api_name function_name conflicts=()
+  account_id="$1"
+  region="$2"
+  bucket_name="$(printf "%s-%s-%s" "$BUCKET_NAME" "$account_id" "$region")"
+  table_name="$TABLE_NAME"
+  api_name="$API_NAME"
+  function_name="$FUNCTION_NAME"
+
+  if aws s3api head-bucket --bucket "$bucket_name" >/dev/null 2>&1; then
+    conflicts+=("S3 bucket: $bucket_name")
+  fi
+  if aws dynamodb describe-table --table-name "$table_name" --region "$region" >/dev/null 2>&1; then
+    conflicts+=("DynamoDB table: $table_name")
+  fi
+  if aws lambda get-function --function-name "$function_name" --region "$region" >/dev/null 2>&1; then
+    conflicts+=("Lambda function: $function_name")
+  fi
+  if aws apigateway get-rest-apis --region "$region" --query "items[?name=='${api_name}'].id" --output text | grep -q .; then
+    conflicts+=("API Gateway: $api_name")
+  fi
+
+  if ((${#conflicts[@]} > 0)); then
+    warn "Found existing resources for this project with no state file:"
+    local c
+    for c in "${conflicts[@]}"; do
+      warn " - $c"
+    done
+    warn "To proceed, either:"
+    warn "  1) Rebuild state: bash scripts/rebuild-state.sh"
+    warn "  2) Or tear down existing resources, then rerun: bash scripts/teardown.sh && bash scripts/init.sh"
+    exit 1
+  fi
+}
+
 main() {
   for cmd in aws zip; do
     require_command "$cmd"
@@ -85,6 +129,9 @@ main() {
     warn "Region must be us-east-1 or us-west-2 for this lab."
     exit 1
   fi
+
+  # Prevent duplicate deployments when state is missing but resources exist
+  preflight_conflicts "$ACCOUNT_ID" "$REGION"
 
   local kms_key_id kms_key_arn bucket_name table_name vpc_id subnet_id route_table_id sg_id s3_endpoint_id api_vpce_id lambda_arn api_id api_root_id ingest_resource_id deployment_id
 
@@ -327,7 +374,13 @@ main() {
 }
 EOF
 
+  # Persist a backup copy of state outside the repo to survive workspace changes
+  backup_dir="$(state_backup_dir "$ACCOUNT_ID" "$REGION")"
+  mkdir -p "$backup_dir"
+  cp "$STATE_FILE" "$backup_dir/serverless-lab-state.json"
+
   info "Bootstrap complete. Intentional faults deployed. State captured at $STATE_FILE"
+  info "Backup saved to $backup_dir/serverless-lab-state.json"
   info "Next: run eval.sh to view failing checks."
 }
 

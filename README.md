@@ -134,7 +134,8 @@ After installation you will see ten failing controls. Each must be remediated in
 8. **Clean up when finished**
    - Run `bash teardown.sh` (add `--keep-state` if you want to archive the state file) to remove the lab resources once your session is complete.
 9. **State accidentally removed?**
-   - If `state/serverless-lab-state.json` is missing but the AWS resources are still present, run `bash rebuild-state.sh` to regenerate it before invoking `bash remediate.sh` or `bash eval.sh`.
+   - Scripts automatically look for a backup at `~/.lab-state/serverless-resiliency-lab/<ACCOUNT>-<REGION>/serverless-lab-state.json` and restore it when possible.
+   - If neither the working copy nor the backup exists but resources remain, run `bash rebuild-state.sh` to regenerate the manifest before invoking `bash remediate.sh` or `bash eval.sh`.
 10. **Role alignment (Learner Lab)**
    - If your assumed role isn’t `LabRole`, set `LabRoleName` to your active role so KMS policy checks line up:
      ```bash

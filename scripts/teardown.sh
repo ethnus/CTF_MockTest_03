@@ -57,8 +57,24 @@ require_command aws
 require_command python3
 
 if [[ ! -f "$STATE_FILE" ]]; then
-  warn "State file not found at $STATE_FILE. Nothing to tear down."
-  exit 1
+  warn "State file not found at $STATE_FILE. Attempting backup recovery."
+  # Try to restore from backup location used by init.sh
+  REGION_HINT="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
+  ACCOUNT_HINT="$(aws sts get-caller-identity --query 'Account' --output text 2>/dev/null || true)"
+  if [[ -n "$REGION_HINT" && -n "$ACCOUNT_HINT" ]]; then
+    BAK_DIR="${HOME}/.lab-state/serverless-resiliency-lab/${ACCOUNT_HINT}-${REGION_HINT}"
+    if [[ -f "$BAK_DIR/serverless-lab-state.json" ]]; then
+      mkdir -p "$(dirname "$STATE_FILE")"
+      cp "$BAK_DIR/serverless-lab-state.json" "$STATE_FILE"
+      info "Recovered state from $BAK_DIR/serverless-lab-state.json"
+    else
+      warn "No backup state found at $BAK_DIR. Use: bash scripts/rebuild-state.sh"
+      exit 1
+    fi
+  else
+    warn "Region/account unknown. Set AWS_REGION and re-run or use: bash scripts/rebuild-state.sh"
+    exit 1
+  fi
 fi
 
 exports=""
