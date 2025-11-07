@@ -10,6 +10,20 @@ REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EVAL_SCRIPT="${SCRIPT_DIR}/eval.sh"
 
+usage() {
+  cat <<'USAGE'
+Usage: bash report.sh [--verbose|-v] [--] [extra eval flags]
+
+Runs the evaluator and records results to a local SQLite DB (state/results.db).
+By default prints the generic Task table from eval.sh. Use --verbose to enable
+instructor mode (passes through to eval.sh) for additional log lines.
+
+Options:
+  -v, --verbose  Enable verbose/instructor mode (adds logs; tasks remain generic)
+  -h, --help     Show this help and exit
+USAGE
+}
+
 info() {
   printf '[report] %s\n' "$1"
 }
@@ -183,6 +197,30 @@ run_evaluation() {
 }
 
 main() {
+  # Parse flags and forwarders to eval.sh
+  local -a forward_flags=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -v|--verbose)
+        forward_flags+=("--verbose")
+        shift
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        # Allow unknown flags to pass through to eval.sh
+        forward_flags+=("$1")
+        shift
+        ;;
+    esac
+  done
+
   require_state
   check_aws_cli_version
   check_aws_credentials
@@ -194,7 +232,7 @@ main() {
     exit 1
   fi
 
-  run_evaluation "$@"
+  run_evaluation "${forward_flags[@]}" "$@"
 }
 
 main "$@"

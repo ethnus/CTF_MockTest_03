@@ -165,13 +165,14 @@ After installation you will see ten failing controls. Each must be remediated in
    ```
 2. **Validate the baseline**
    ```bash
-   bash eval.sh
+  bash eval.sh --verbose
    ```
-   Ensure all controls show `INCOMPLETE` before handing access to competitors.
+   Ensure all controls show `NOT ACCEPTED` before handing access to competitors.
 3. **Support the cohort**
    - Share guardrails or hints aligned with the ten controls.
    - Demonstrate fixes live by applying remediations and re-running `bash eval.sh` for proof.
-   - Use `bash remediate.sh` as a reference solution (do not distribute to competitors).
+  - Use `bash remediate.sh` as a reference solution (do not distribute to competitors).
+  - To archive results with the same table, run: `bash report.sh --verbose`.
    - Encourage competitors to keep plan files, remediation notes, and evaluation logs under `state/` (e.g., `state/artifacts/`) for consistent evidence capture.
 4. **Cleanup guidance**
    - When the cohort wraps, run `bash teardown.sh` to remove deployed resources. Use `bash teardown.sh --keep-state` if you need to retain the manifest for grading or evidence.
