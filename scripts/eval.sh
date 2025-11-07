@@ -457,21 +457,25 @@ run_check() {
 }
 
 print_scorecard() {
-  local accepted=0 total=0 entry id status
+  local accepted=0 total=0 entry id status shown
+  # Header
+  printf '\n'
+  printf '+----+-----------+---------------+\n'
+  printf '| %-2s | %-9s | %-13s |\n' '#' 'Task' 'Status'
+  printf '+----+-----------+---------------+\n'
   for entry in "${CONTROL_RESULTS[@]}"; do
     IFS='|' read -r id _ status <<<"$entry"
     (( total++ ))
-    [[ "$status" == "ACCEPTED" ]] && (( accepted++ ))
+    if [[ "$status" == "ACCEPTED" ]]; then
+      shown="ACCEPTED"
+      (( accepted++ ))
+    else
+      shown="NOT ACCEPTED"
+    fi
+    printf '| %-2s | %-9s | %-13s |\n' "$id" "Task $id" "$shown"
   done
-  if (( EVAL_VERBOSE )); then
-    printf '[eval] Accepted: %d/%d\n' "$accepted" "$total"
-    for entry in "${CONTROL_RESULTS[@]}"; do
-      IFS='|' read -r id _ status <<<"$entry"
-      printf '[eval] #%s: %s\n' "$id" "$status"
-    done
-  else
-    printf 'Accepted: %d/%d\n' "$accepted" "$total"
-  fi
+  printf '+----+-----------+---------------+\n'
+  printf 'Accepted: %d/%d\n' "$accepted" "$total"
 }
 
 main() {

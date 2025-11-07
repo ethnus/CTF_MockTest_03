@@ -117,7 +117,18 @@ After installation you will see ten failing controls. Each must be remediated in
    ```bash
    bash eval.sh
    ```
-   The evaluator is intentionally terse and only prints a summary (e.g., `Accepted: 0/10`). It does not reveal the specific checks to learners. Instructors may set `EVAL_VERBOSE=1` to also print per-control numeric statuses.
+   The evaluator shows a tabular scorecard with generic tasks and opaque statuses, e.g.:
+   
+   +----+-----------+---------------+
+   | #  | Task      | Status        |
+   +----+-----------+---------------+
+   | 1  | Task 1    | NOT ACCEPTED  |
+   | 2  | Task 2    | ACCEPTED      |
+   | .. | ...       | ...           |
+   +----+-----------+---------------+
+   Accepted: N/10
+   
+   It does not reveal check details. Instructors may set `EVAL_VERBOSE=1` to add per-task log lines, but labels remain generic.
 
 5. **Capture plans and artifacts**
    - Store CLI transcripts, `eval` output, and remediation notes under `../state/` so they remain outside version control.
