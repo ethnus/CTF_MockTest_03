@@ -3,6 +3,7 @@
 set -euo pipefail
 export AWS_PAGER=""
 EVAL_VERBOSE=${EVAL_VERBOSE:-0}
+TABLE_SHOWN=0
 FORCE_COLOR=${FORCE_COLOR:-}
 NO_COLOR=${NO_COLOR:-}
 
@@ -102,6 +103,16 @@ Options:
   -h, --help     Show this help and exit.
 USAGE
 }
+
+# Escape hatch: if the script exits before rendering a score table,
+# print a concise hint so learners aren't left with a blank screen.
+on_exit() {
+  local rc=$?
+  if [[ $rc -ne 0 && ${TABLE_SHOWN:-0} -eq 0 ]]; then
+    printf '[eval][fail] Evaluation ended unexpectedly (exit %d). Try --verbose for diagnostics, or run init.sh/rebuild-state.sh if state is missing.\n' "$rc"
+  fi
+}
+trap on_exit EXIT
 
 require_state() {
   if [[ ! -f "$STATE_FILE" ]]; then
@@ -731,6 +742,7 @@ main() {
   run_check 10 "" check_api_policy
 
   print_scorecard
+  TABLE_SHOWN=1
 
   if [[ "$failures" -eq 0 ]]; then
     local flag_input="${AccountId}:${Region}:${ApiId}"
