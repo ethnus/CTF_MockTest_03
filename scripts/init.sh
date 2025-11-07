@@ -135,9 +135,9 @@ apply_faults_existing() {
   # Export state vars into environment for convenience
   while IFS='=' read -r key value; do
     export "$key"="$value"
-  done < <(python3 - <<'PY'
-import json, os
-path = os.environ.get('STATE_FILE')
+  done < <(python3 - "$STATE_FILE" <<'PY'
+import json, sys
+path = sys.argv[1]
 with open(path,'r',encoding='utf-8') as fh:
   data=json.load(fh)
 for k,v in data.items():
