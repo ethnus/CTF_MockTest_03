@@ -131,7 +131,9 @@ After installation you will see ten failing controls. Each must be remediated in
    +----+-----------+---------------+
    Accepted: N/10
    
-   It does not reveal check details. Instructors may pass `--verbose` (or set `EVAL_VERBOSE=1`) to add per-task log lines; labels remain generic.
+   Color control: add `--color` or `--no-color` if your terminal needs it.
+   
+   It does not reveal check details. Instructors may pass `--verbose` (or set `EVAL_VERBOSE=1`) to add per-task diagnostic logs; labels remain generic.
 
 5. **Capture plans and artifacts**
    - Store CLI transcripts, `eval` output, and remediation notes under `../state/` so they remain outside version control.
@@ -237,7 +239,7 @@ CloudShell home directories are 1 GB; `/workspace` offers more headroom for arti
 
 - **`init.sh` aborts due to existing state**: Remove `state/serverless-lab-state.json` (or change `STATE_FILE`) only after manually cleaning AWS resources.
 - **`aws` command not found or wrong version**: Install AWS CLI v2 (check `aws --version` for `aws-cli/2.x`).
-- **Evaluation still failing after a fix**: Re-run `bash eval.sh` to refresh cache. Use `aws` CLI commands echoed in the script to inspect current resource configuration.
+- **Evaluation still failing after a fix**: Re-run `bash eval.sh` (or `bash eval.sh --verbose` for diagnostics). Use targeted AWS CLI `describe` calls to inspect current resource configuration.
 - **Permission errors when modifying resources**: Confirm you are assuming the lab role (`LabRole` by default) and that the Learner Lab session is active.
 - **Lambda packaging issues**: The bootstrap script bundles the function automatically; you do not need to re-upload unless you modified the code.
 - **Cleaning up**: Run `bash teardown.sh` after validating the challenge to remove deployed resources (add `--keep-state` if you need the manifest).

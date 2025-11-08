@@ -9,6 +9,7 @@ export AWS_PAGER=""
 STATE_FILE="${STATE_FILE:-state/serverless-lab-state.json}"
 PROJECT_NAME="serverless-resiliency-lab"
 KEEP_STATE=0
+vpc_still_exists=0
 
 usage() {
   cat <<'USAGE'
@@ -176,7 +177,37 @@ delete_vpc_endpoints() {
     --region "$Region" >/dev/null 2>&1 || warn "Failed to delete VPC endpoints: ${ids[*]}"
 }
 
+# Best-effort cleanup of residual ENIs that can block subnet/SG/VPC deletion
+delete_residual_enis() {
+  if [[ -z "${VpcId:-}" ]]; then
+    return
+  fi
+  local enis eni attach
+  enis="$(aws ec2 describe-network-interfaces \
+    --filters Name=vpc-id,Values="$VpcId" \
+    --region "$Region" \
+    --query 'NetworkInterfaces[].NetworkInterfaceId' \
+    --output text 2>/dev/null || true)"
+  if [[ -z "$enis" || "$enis" == "None" ]]; then
+    return
+  fi
+  for eni in $enis; do
+    attach="$(aws ec2 describe-network-interfaces \
+      --network-interface-ids "$eni" \
+      --region "$Region" \
+      --query 'NetworkInterfaces[0].Attachment.AttachmentId' \
+      --output text 2>/dev/null || true)"
+    if [[ -n "$attach" && "$attach" != "None" ]]; then
+      aws ec2 detach-network-interface --attachment-id "$attach" --force --region "$Region" >/dev/null 2>&1 || true
+      sleep 2
+    fi
+    aws ec2 delete-network-interface --network-interface-id "$eni" --region "$Region" >/dev/null 2>&1 || warn "Failed to delete ENI $eni"
+  done
+}
+
 delete_networking() {
+  # Residual ENIs (from Lambda VPC config or interface endpoints) can block delete
+  delete_residual_enis
   if [[ -n "${RouteTableId:-}" ]]; then
     local assoc_id
     assoc_id="$(
@@ -209,9 +240,10 @@ delete_networking() {
   fi
 
   if [[ -n "${VpcId:-}" ]]; then
-    aws ec2 delete-vpc \
-      --vpc-id "$VpcId" \
-      --region "$Region" >/dev/null 2>&1 || warn "Failed to delete VPC $VpcId"
+    if ! aws ec2 delete-vpc --vpc-id "$VpcId" --region "$Region" >/dev/null 2>&1; then
+      warn "Failed to delete VPC $VpcId"
+      vpc_still_exists=1
+    fi
   fi
 }
 
@@ -237,6 +269,12 @@ empty_and_delete_bucket
 delete_vpc_endpoints
 delete_networking
 cleanup_kms
+
+# If VPC still exists, force retaining state for safe follow-up cleanup
+if (( vpc_still_exists )); then
+  KEEP_STATE=1
+  warn "VPC still present; retaining state file for manual cleanup or retry."
+fi
 
 if [[ $KEEP_STATE -eq 0 ]]; then
   rm -f "$STATE_FILE"
