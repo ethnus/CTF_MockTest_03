@@ -667,12 +667,3 @@ EOF
 }
 
 main "$@"
-  log_kv "S3 Bucket" "$bucket_name"
-  log_kv "DynamoDB Table" "$table_name"
-  log_kv "Route Table Id" "$route_table_id"
-  log_kv "Security Group Id" "$sg_id"
-  log_kv "S3 Gateway Endpoint Id" "$s3_endpoint_id"
-  log_kv "Execute-API Interface Endpoint Id" "$api_vpce_id"
-  log_kv "Lambda Arn" "$lambda_arn"
-  log_kv "Ingest Resource Id" "$ingest_resource_id"
-  log_kv "Deployment Id" "$deployment_id"
