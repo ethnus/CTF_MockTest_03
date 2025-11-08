@@ -385,7 +385,7 @@ PY
 
 check_dynamodb_sse() {
   local table_json
-  table_json="$(aws dynamodb describe-table --table-name "$DynamoTableName" --region "$Region")"
+  table_json="$(aws dynamodb describe-table --table-name "$DynamoTableName" --region "$Region" 2>/dev/null)" || return 1
   if printf '%s' "$table_json" | python3 - "$KmsKeyArn" <<'PY'
 import json
 import sys
@@ -422,7 +422,7 @@ PY
 
 check_dynamodb_pitr() {
   local summary_json
-  summary_json="$(aws dynamodb describe-continuous-backups --table-name "$DynamoTableName" --region "$Region")"
+  summary_json="$(aws dynamodb describe-continuous-backups --table-name "$DynamoTableName" --region "$Region" 2>/dev/null)" || return 1
   if printf '%s' "$summary_json" | python3 - <<'PY'
 import json
 import sys
@@ -454,7 +454,7 @@ check_dynamodb_endpoint() {
   count="$(aws ec2 describe-vpc-endpoints \
     --region "$Region" \
     --filters "Name=vpc-id,Values=$VpcId" "Name=service-name,Values=com.amazonaws.${Region}.dynamodb" \
-    --query 'length(VpcEndpoints)')"
+    --query 'length(VpcEndpoints)' 2>/dev/null)" || return 1
   if [[ "$count" -ge 1 ]]; then
     return 0
   else
@@ -464,7 +464,7 @@ check_dynamodb_endpoint() {
 
 check_s3_endpoint_routes() {
   local routes_json
-  routes_json="$(aws ec2 describe-vpc-endpoints --vpc-endpoint-ids "$S3EndpointId" --region "$Region" --query 'VpcEndpoints[0].RouteTableIds' --output json)"
+  routes_json="$(aws ec2 describe-vpc-endpoints --vpc-endpoint-ids "$S3EndpointId" --region "$Region" --query 'VpcEndpoints[0].RouteTableIds' --output json 2>/dev/null)" || return 1
   if printf '%s' "$routes_json" | python3 - <<'PY'
 import json
 import sys
@@ -494,7 +494,7 @@ PY
 
 check_lambda_env() {
   local config_json
-  config_json="$(aws lambda get-function-configuration --function-name "$LambdaArn" --region "$Region")"
+  config_json="$(aws lambda get-function-configuration --function-name "$LambdaArn" --region "$Region" 2>/dev/null)" || return 1
   if printf '%s' "$config_json" | python3 - "$DynamoTableName" <<'PY'
 import json
 import sys
@@ -524,7 +524,7 @@ PY
 
 check_event_rule() {
   local state
-  state="$(aws events describe-rule --name "$EventRuleName" --region "$Region" --query 'State' --output text)"
+  state="$(aws events describe-rule --name "$EventRuleName" --region "$Region" --query 'State' --output text 2>/dev/null)" || return 1
   if [[ "$state" == "ENABLED" ]]; then
     return 0
   else
@@ -534,7 +534,7 @@ check_event_rule() {
 
 check_api_policy() {
   local policy_json
-  policy_json="$(aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query 'policy')"
+  policy_json="$(aws apigateway get-rest-api --rest-api-id "$ApiId" --region "$Region" --query 'policy' 2>/dev/null)" || return 1
   if POLICY_JSON="$policy_json" python3 - "$ExecuteApiEndpointId" <<'PY'
 import json
 import os
