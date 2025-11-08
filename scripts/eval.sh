@@ -114,6 +114,20 @@ on_exit() {
 }
 trap on_exit EXIT
 
+# Build a stub table marking all tasks as NOT ACCEPTED and exit non-zero with a message.
+early_fail() {
+  local reason="$1"
+  CONTROL_RESULTS=()
+  failures=10
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    CONTROL_RESULTS+=("$i||INCOMPLETE")
+  done
+  print_scorecard
+  fail "$reason"
+  exit 2
+}
+
 require_state() {
   if [[ ! -f "$STATE_FILE" ]]; then
     info "State file not found at $STATE_FILE. Checking backup..."
@@ -127,12 +141,10 @@ require_state() {
         cp "$bak" "$STATE_FILE"
         info "Recovered state from $bak"
       else
-        fail "State file missing and no backup found. Run init.sh or rebuild-state.sh."
-        exit 1
+        early_fail "State file missing and no backup found. Run init.sh or rebuild-state.sh."
       fi
     else
-      fail "Region/account unknown and state missing. Set AWS_REGION or run rebuild-state.sh."
-      exit 1
+      early_fail "Region/account unknown and state missing. Set AWS_REGION or run rebuild-state.sh."
     fi
   fi
 }
@@ -142,16 +154,13 @@ check_aws_cli_version() {
   version="$(aws --version 2>&1 | awk '{print $1}' | cut -d/ -f2)"
   major="${version%%.*}"
   if [[ -z "$version" ]]; then
-    fail "Unable to determine AWS CLI version."
-    exit 1
+    early_fail "Unable to determine AWS CLI version. Ensure AWS CLI v2 is installed."
   fi
   if ! [[ "$major" =~ ^[0-9]+$ ]]; then
-    fail "Unrecognized AWS CLI version format: $version."
-    exit 1
+    early_fail "Unrecognized AWS CLI version format: $version."
   fi
   if (( major < 2 )); then
-    fail "AWS CLI v2 or later required. Detected $version."
-    exit 1
+    early_fail "AWS CLI v2 or later required. Detected $version."
   fi
   info "Detected AWS CLI version $version"
 }
@@ -713,8 +722,7 @@ main() {
   # Robust state loading: capture and validate JSON → key=value pairs
   local _state_kvs
   if ! _state_kvs="$(STATE_FILE="$STATE_FILE" load_state 2>/dev/null)"; then
-    fail "State manifest is unreadable or invalid JSON at $STATE_FILE. Run init.sh or rebuild-state.sh."
-    exit 1
+    early_fail "State manifest is unreadable or invalid JSON at $STATE_FILE. Run init.sh or rebuild-state.sh."
   fi
   while IFS='=' read -r key value; do
     export "$key"="$value"
@@ -728,8 +736,7 @@ main() {
   S3BucketName="${S3BucketName:-}"
   DynamoTableName="${DynamoTableName:-}"
   if [[ -z "$AccountId" || -z "$Region" || -z "$ApiId" || -z "$KmsKeyId" || -z "$S3BucketName" || -z "$DynamoTableName" ]]; then
-    fail "State manifest is missing required fields. Run init.sh or rebuild-state.sh."
-    exit 1
+    early_fail "State manifest is missing required fields. Run init.sh or rebuild-state.sh."
   fi
 
   info "Evaluating remediation status for account $AccountId in $Region"
