@@ -623,6 +623,11 @@ run_check() {
 }
 
 print_scorecard() {
+  # Mark table as shown early to suppress EXIT-trap hint in case of minor
+  # non-fatal errors while rendering the table under set -e.
+  TABLE_SHOWN=1
+  # Relax -e for table rendering to avoid aborting on any non-critical printf/read
+  set +e
   local accepted=0 total=0 entry id status shown
   local use_color=0
   local RED="" GREEN="" BLUE="" BOLD="" RESET=""
@@ -670,6 +675,8 @@ print_scorecard() {
     printf 'Accepted: %d/%d\n' "$accepted" "$total"
     printf 'Score: %d/%d tasks accepted\n' "$accepted" "$total"
   fi
+  # Re-enable -e for subsequent logic
+  set -e
 }
 
 main() {
