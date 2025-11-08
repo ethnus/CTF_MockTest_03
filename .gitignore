@@ -4,3 +4,4 @@ git-meta/
 state/*.db
 scripts/git-commit-push.sh
 AGENTS.md
+reference/
